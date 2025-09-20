@@ -1,10 +1,17 @@
-//! This crate contains all shared UI for the workspace.
+//! Shared UI crate for Looplace. Most cross-platform logic and views live here.
+
+pub mod core;
+pub mod results;
+pub mod tasks;
+pub mod views;
+
+mod navbar;
+pub mod components {
+    pub use super::navbar::Navbar;
+}
 
 mod hero;
 pub use hero::Hero;
-
-mod navbar;
-pub use navbar::Navbar;
 
 mod echo;
 pub use echo::Echo;

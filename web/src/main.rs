@@ -1,9 +1,7 @@
 use dioxus::prelude::*;
 
-use ui::Navbar;
-use views::{Blog, Home};
-
-mod views;
+use ui::components::Navbar;
+use ui::views::{Home, NBack2, Pvt, Results};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -11,8 +9,12 @@ enum Route {
     #[layout(WebNavbar)]
     #[route("/")]
     Home {},
-    #[route("/blog/:id")]
-    Blog { id: i32 },
+    #[route("/test/pvt")]
+    Pvt {},
+    #[route("/test/nback")]
+    NBack2 {},
+    #[route("/results")]
+    Results {},
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -46,8 +48,16 @@ fn WebNavbar() -> Element {
                 "Home"
             }
             Link {
-                to: Route::Blog { id: 1 },
-                "Blog"
+                to: Route::Pvt {},
+                "PVT"
+            }
+            Link {
+                to: Route::NBack2 {},
+                "2-back"
+            }
+            Link {
+                to: Route::Results {},
+                "Results"
             }
         }
 

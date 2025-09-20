@@ -13,28 +13,28 @@
 
 **Goal:** Keep the dx template shape while centralizing logic in `ui/`.
 
-- [ ] Create shared view wrappers in `ui/src/views/`:
+- [x] Create shared view wrappers in `ui/src/views/`:
   - `home.rs`, `pvt.rs`, `nback.rs`, `results.rs`
   - Each wraps the corresponding component (`<Home/>`, `<Pvt/>`, `<NBack2/>`, `<Results/>`).
-- [ ] Add `ui/src/tasks/` and `ui/src/core/` scaffolds:
+- [x] Add `ui/src/tasks/` and `ui/src/core/` scaffolds:
   - `tasks/pvt/{engine.rs,metrics.rs,view.rs}`
   - `tasks/nback/{engine.rs,metrics.rs,view.rs}`
   - `core/{timing.rs,storage.rs,qc.rs,format.rs,platform.rs}`
-- [ ] Re-export a clean surface from `ui/src/lib.rs`:
+- [x] Re-export a clean surface from `ui/src/lib.rs`:
   ```rust
   pub mod views { pub use crate::views::{Home, Pvt, NBack2, Results}; }
   pub mod components { pub use crate::navbar::Navbar; }
 ````
 
-* [ ] **Web routes** (`web/src/main.rs`): keep the template’s local `Route` and point to `ui` views:
+* [x] **Web routes** (`web/src/main.rs`): keep the template’s local `Route` and point to `ui` views:
 
   * `"/"` → `ui::views::Home`
   * `"/test/pvt"` → `ui::views::Pvt`
   * `"/test/nback"` → `ui::views::NBack2`
   * `"/results"` → `ui::views::Results`
-* [ ] **Desktop routes** (`desktop/src/main.rs`): same as web (own `Route` enum, import `ui` views).
+* [x] **Desktop routes** (`desktop/src/main.rs`): same as web (own `Route` enum, import `ui` views).
 * [ ] Keep platform-specific assets in each platform; shared CSS/images remain in `ui/assets/`.
-* [ ] Optionally remove/rename the sample `blog.rs` routes, or keep them as a dx tutorial page.
+* [x] Optionally remove/rename the sample `blog.rs` routes, or keep them as a dx tutorial page.
 
 **Acceptance (M0):**
 
@@ -142,12 +142,12 @@ Key: `looplace_summaries` → JSON array
 
 **ui/**
 
-* [ ] `src/core/{timing.rs,storage.rs,qc.rs,format.rs,platform.rs}`
-* [ ] `src/tasks/pvt/{engine.rs,metrics.rs,view.rs}`
-* [ ] `src/tasks/nback/{engine.rs,metrics.rs,view.rs}`
-* [ ] `src/results/{list.rs,detail.rs,charts.rs,export.rs}`
-* [ ] `src/views/{home.rs,pvt.rs,nback.rs,results.rs}`
-* [ ] `src/lib.rs` (re-exports `views`, `components`)
+* [x] `src/core/{timing.rs,storage.rs,qc.rs,format.rs,platform.rs}`
+* [x] `src/tasks/pvt/{engine.rs,metrics.rs,view.rs}`
+* [x] `src/tasks/nback/{engine.rs,metrics.rs,view.rs}`
+* [x] `src/results/{list.rs,detail.rs,charts.rs,export.rs}`
+* [x] `src/views/{home.rs,pvt.rs,nback.rs,results.rs}`
+* [x] `src/lib.rs` (re-exports `views`, `components`)
 
 **web/**
 
