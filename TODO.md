@@ -45,24 +45,24 @@
 
 ## M1 — PVT MVP (engine → metrics → local summary)
 
-* [ ] **Engine (`ui/tasks/pvt/engine.rs`)**
+* [x] **Engine (`ui/tasks/pvt/engine.rs`)**
 
   * RAF scheduler + `performance.now()`
   * ITI jitter 2–10 s
   * Keydown/tap input; **anticipation (false start)** detection
-  * Pause/Abort controls
-* [ ] **Metrics (`ui/tasks/pvt/metrics.rs`)**
+  * [ ] Pause/Resume controls (abort wired)
+* [x] **Metrics (`ui/tasks/pvt/metrics.rs`)**
 
   * `median_rt_ms`, `mean_rt_ms`, `sd_rt_ms`, `p10_rt_ms`, `p90_rt_ms`
   * `lapses_ge_500ms`, `minor_lapses_355_499ms`, `false_starts`
   * `time_on_task_slope_ms_per_min`
-* [ ] **QC flags (`ui/core/qc.rs`)**
+* [x] **QC flags (`ui/core/qc.rs`)**
 
   * Visibility/tab blur counters; min-trial guard; device snapshot
-* [ ] **Persist (`ui/core/storage.rs`)**
+* [x] **Persist (`ui/core/storage.rs`)**
 
   * Append a single **summary JSON** per run to `localStorage` key `looplace_summaries`
-* [ ] **View (`ui/tasks/pvt/view.rs` + `ui/views/pvt.rs`)**
+* [x] **View (`ui/tasks/pvt/view.rs` + `ui/views/pvt.rs`)**
 
   * Minimal test UI, instructions, big key/tap target
   * End-of-run stat card preview
