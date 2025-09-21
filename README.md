@@ -259,7 +259,7 @@ Both tasks share the same top-level record shape (`id`, `task`, `created_at`, `c
 
 * `Build (Desktop)` runs on every push/PR and currently produces macOS Apple Silicon bundles and Windows x64 zips.
 * `Release (Desktop)` fires on tags matching `v*.*.*`, publishes the macOS `.app` archive and the Windows portable zip.
-* `Deploy (CF Pages)` is opt-in via the Actions UI (`workflow_dispatch`); uncomment the push trigger in `.github/workflows/deploy-pages.yml` once continuous deploys are desired and ensure `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets are set.
+* `Deploy (CF Pages)` is currently paused; the workflow has been renamed to `deploy-pages.yml.disabled`. Restore the original filename and secrets (`CF_API_TOKEN`, `CF_ACCOUNT_ID`) if web deployments become a priority again.
 
 ### Desktop bundling notes
 

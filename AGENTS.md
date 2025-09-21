@@ -20,7 +20,7 @@
 ## CI snapshot
 - `Build (Desktop)`: macOS Apple Silicon `.app` bundle + Windows x64 zip on every push/PR.
 - `Release (Desktop)`: tagged builds publish both artifacts to GitHub Releases.
-- `Deploy (CF Pages)`: manual `workflow_dispatch` (set `CF_API_TOKEN`/`CF_ACCOUNT_ID` before enabling push deploys).
+- `Deploy (CF Pages)`: disabled for now; rename `.github/workflows/deploy-pages.yml.disabled` back to `.yml` if we resume web builds (requires `CF_API_TOKEN`/`CF_ACCOUNT_ID`).
 
 ## Working guidelines
 - Stick to existing architectural patterns; defer to `README.md`/`TODO.md` before inventing new abstractions.
