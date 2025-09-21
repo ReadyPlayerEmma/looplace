@@ -14,9 +14,12 @@ pub fn Navbar(children: Element) -> Element {
             document::Style { "{NAVBAR_CSS_INLINE}" }
         }
 
-        div {
+        header {
             id: "navbar",
-            {children}
+            div {
+                class: "navbar__inner",
+                {children}
+            }
         }
     }
 }

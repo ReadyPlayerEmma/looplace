@@ -43,21 +43,38 @@ fn App() -> Element {
 fn WebNavbar() -> Element {
     rsx! {
         Navbar {
-            Link {
-                to: Route::Home {},
-                "Home"
+            div {
+                class: "navbar__brand",
+                Link {
+                    class: "navbar__brand-link",
+                    to: Route::Home {},
+                    span { class: "navbar__brand-spark", aria_hidden: "true" }
+                    span { class: "navbar__brand-mark", "Looplace" }
+                }
+                span { class: "navbar__brand-subtitle", "Track focus with compassion" }
             }
-            Link {
-                to: Route::Pvt {},
-                "PVT"
-            }
-            Link {
-                to: Route::NBack2 {},
-                "2-back"
-            }
-            Link {
-                to: Route::Results {},
-                "Results"
+            nav {
+                class: "navbar__links",
+                Link {
+                    class: "navbar__link",
+                    to: Route::Home {},
+                    "Home"
+                }
+                Link {
+                    class: "navbar__link",
+                    to: Route::Pvt {},
+                    "PVT"
+                }
+                Link {
+                    class: "navbar__link",
+                    to: Route::NBack2 {},
+                    "2-back"
+                }
+                Link {
+                    class: "navbar__link",
+                    to: Route::Results {},
+                    "Results"
+                }
             }
         }
 
