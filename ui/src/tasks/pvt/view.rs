@@ -27,19 +27,19 @@ pub fn PvtView() -> Element {
     let sender_slot_for_loop = sender_slot.clone();
 
     let coroutine = {
-        let engine_ref = engine.clone();
-        let qc_ref = qc_flags.clone();
-        let metrics_ref = last_metrics.clone();
-        let indicator_ref = indicator_text.clone();
-        let error_ref = last_error.clone();
+        let engine_ref = engine;
+        let qc_ref = qc_flags;
+        let metrics_ref = last_metrics;
+        let indicator_ref = indicator_text;
+        let error_ref = last_error;
 
         use_coroutine(move |mut rx: UnboundedReceiver<PvtEvent>| {
             let sender_slot = sender_slot_for_loop.clone();
-            let mut engine_signal = engine_ref.clone();
-            let mut qc_signal = qc_ref.clone();
-            let mut metrics_signal = metrics_ref.clone();
-            let mut indicator_signal = indicator_ref.clone();
-            let mut error_signal = error_ref.clone();
+            let mut engine_signal = engine_ref;
+            let mut qc_signal = qc_ref;
+            let mut metrics_signal = metrics_ref;
+            let mut indicator_signal = indicator_ref;
+            let mut error_signal = error_ref;
 
             async move {
                 while let Some(event) = rx.next().await {
@@ -122,10 +122,10 @@ pub fn PvtView() -> Element {
                                 ResponseOutcome::RunCompleted => {
                                     finalize_run(
                                         &engine_signal,
-                                        qc_signal.clone(),
-                                        metrics_signal.clone(),
-                                        indicator_signal.clone(),
-                                        error_signal.clone(),
+                                        qc_signal,
+                                        metrics_signal,
+                                        indicator_signal,
+                                        error_signal,
                                     );
                                 }
                                 ResponseOutcome::Ignored => {}
@@ -154,10 +154,10 @@ pub fn PvtView() -> Element {
                                     indicator_signal.set("LAP".to_string());
                                     finalize_run(
                                         &engine_signal,
-                                        qc_signal.clone(),
-                                        metrics_signal.clone(),
-                                        indicator_signal.clone(),
-                                        error_signal.clone(),
+                                        qc_signal,
+                                        metrics_signal,
+                                        indicator_signal,
+                                        error_signal,
                                     );
                                 }
                                 ResponseOutcome::Ignored => {}
@@ -213,16 +213,16 @@ pub fn PvtView() -> Element {
     sender_slot.borrow_mut().replace(coroutine.tx());
 
     let send_event = {
-        let coroutine = coroutine.clone();
+        let coroutine_handle = coroutine;
         move |event: PvtEvent| {
-            coroutine.send(event);
+            coroutine_handle.send(event);
         }
     };
 
     let respond_now = {
-        let send_event = send_event.clone();
+        let send_event_handle = send_event;
         move || {
-            send_event(PvtEvent::Respond {
+            send_event_handle(PvtEvent::Respond {
                 timestamp: timing::now(),
             });
         }

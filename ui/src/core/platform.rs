@@ -70,7 +70,7 @@ pub fn spawn_future<F>(future: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    let _ = tokio::spawn(future);
+    tokio::spawn(future);
 }
 
 fn detect_platform() -> Platform {
