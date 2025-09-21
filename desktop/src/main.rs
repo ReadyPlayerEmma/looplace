@@ -40,7 +40,7 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
         if cfg!(not(debug_assertions)) {
-            document::Style { dangerous_inner_html: MAIN_CSS_INLINE }
+            document::Style { "{MAIN_CSS_INLINE}" }
         }
 
         Router::<Route> {}
