@@ -10,12 +10,13 @@ use crate::core::qc::QualityFlags;
 use crate::core::{platform, storage, timing};
 
 use super::engine::{
-    AdvanceOutcome, EngineState, NBackEngine, ResponseOutcome, RunMode, TrialSchedule,
+    AdvanceOutcome, EngineState, NBackEngine, ResponseOutcome, RunMode, TrialOutcome, TrialSchedule,
 };
 use super::metrics::NBackMetrics;
 
 const PRACTICE_LABEL: &str = "Practice";
 const MAIN_LABEL: &str = "Main session";
+const FEEDBACK_HOLD_MS: u64 = 850;
 
 #[component]
 pub fn NBackView() -> Element {
@@ -24,6 +25,7 @@ pub fn NBackView() -> Element {
     let practice_metrics = use_signal(|| Option::<NBackMetrics>::None);
     let last_metrics = use_signal(|| Option::<NBackMetrics>::None);
     let last_error = use_signal(|| Option::<String>::None);
+    let feedback_state = use_signal(|| Option::<FeedbackState>::None);
 
     let sender_slot: Rc<RefCell<Option<UnboundedSender<NBackEvent>>>> = Rc::new(RefCell::new(None));
     let sender_slot_for_loop = sender_slot.clone();
@@ -34,6 +36,7 @@ pub fn NBackView() -> Element {
         let practice_ref = practice_metrics;
         let last_metrics_ref = last_metrics;
         let error_ref = last_error;
+        let feedback_ref = feedback_state;
 
         use_coroutine(move |mut rx: UnboundedReceiver<NBackEvent>| {
             let sender_slot = sender_slot_for_loop.clone();
@@ -42,6 +45,7 @@ pub fn NBackView() -> Element {
             let mut practice_metrics = practice_ref;
             let mut last_metrics = last_metrics_ref;
             let mut last_error = error_ref;
+            let mut feedback_signal = feedback_ref;
 
             async move {
                 while let Some(event) = rx.next().await {
@@ -49,6 +53,7 @@ pub fn NBackView() -> Element {
                         NBackEvent::StartPractice => {
                             practice_metrics.set(None);
                             last_error.set(None);
+                            feedback_signal.set(None);
                             engine.with_mut(|eng| {
                                 eng.config.response_window_ms =
                                     eng.config.stimulus_ms + eng.config.interstimulus_interval_ms;
@@ -64,6 +69,7 @@ pub fn NBackView() -> Element {
                             last_metrics.set(None);
                             last_error.set(None);
                             qc_flags.set(QualityFlags::pristine());
+                            feedback_signal.set(None);
                             engine.with_mut(|eng| {
                                 eng.config.response_window_ms =
                                     eng.config.stimulus_ms + eng.config.interstimulus_interval_ms;
@@ -102,21 +108,57 @@ pub fn NBackView() -> Element {
                         NBackEvent::Respond { timestamp } => {
                             let response = engine.with_mut(|eng| eng.register_response(timestamp));
 
-                            if let ResponseOutcome::Ignored = response {
-                                // Stale response outside active window.
+                            match response {
+                                ResponseOutcome::Recorded(kind) => {
+                                    let (message, tone) = match kind {
+                                        super::engine::ResponseKind::Hit => {
+                                            ("Match captured", FeedbackTone::Positive)
+                                        }
+                                        super::engine::ResponseKind::FalseAlarm => {
+                                            ("Not a match", FeedbackTone::Negative)
+                                        }
+                                    };
+                                    feedback_signal.set(Some(FeedbackState::new(message, tone)));
+                                    let run_id = engine.with(|eng| eng.run_id);
+                                    schedule_feedback_clear(
+                                        sender_slot.clone(),
+                                        run_id,
+                                        FEEDBACK_HOLD_MS,
+                                    );
+                                }
+                                ResponseOutcome::Ignored => {
+                                    // Stale response outside active window.
+                                }
                             }
                         }
                         NBackEvent::Advance {
                             run_id,
                             trial_index,
                         } => {
-                            let outcome = engine.with_mut(|eng| {
+                            let (outcome, trial_snapshot) = engine.with_mut(|eng| {
                                 if eng.run_id == run_id {
-                                    eng.advance(trial_index)
+                                    let result = eng.advance(trial_index);
+                                    let trial = eng
+                                        .trials()
+                                        .get(trial_index)
+                                        .map(|trial| trial.outcome.clone());
+                                    (result, trial)
                                 } else {
-                                    AdvanceOutcome::Ignored
+                                    (AdvanceOutcome::Ignored, None)
                                 }
                             });
+
+                            if matches!(trial_snapshot, Some(TrialOutcome::Miss)) {
+                                feedback_signal.set(Some(FeedbackState::new(
+                                    "Missed match",
+                                    FeedbackTone::Negative,
+                                )));
+                                schedule_feedback_clear(
+                                    sender_slot.clone(),
+                                    run_id,
+                                    FEEDBACK_HOLD_MS,
+                                );
+                            }
 
                             match outcome {
                                 AdvanceOutcome::Next(schedule) => {
@@ -140,6 +182,12 @@ pub fn NBackView() -> Element {
                                 flags.log_focus_loss();
                                 flags.log_visibility_blur();
                             });
+                        }
+                        NBackEvent::ClearFeedback { run_id } => {
+                            let current_run = engine.with(|eng| eng.run_id);
+                            if current_run == run_id {
+                                feedback_signal.set(None);
+                            }
                         }
                     }
                 }
@@ -191,6 +239,7 @@ pub fn NBackView() -> Element {
     let last_practice = practice_metrics();
     let latest_metrics = last_metrics();
     let error_message = last_error();
+    let feedback = feedback_state();
 
     let mode_label = active_mode
         .map(|mode| match mode {
@@ -263,6 +312,18 @@ pub fn NBackView() -> Element {
                                 span { style: "font-size:1.1rem; letter-spacing:0.08rem; color:rgba(247,247,247,0.6);",
                                     "Get ready"
                                 }
+                            }
+                        }
+
+                        if let Some(feedback) = feedback.clone() {
+                            div {
+                                class: "task-nback__feedback",
+                                style: format!(
+                                    "position:absolute; bottom:2rem; width:80%; max-width:320px; text-align:center; padding:0.6rem 1rem; border-radius:999px; font-weight:600; letter-spacing:0.04rem; background:{}; color:{}; box-shadow:0 8px 24px rgba(0,0,0,0.25);",
+                                    feedback.background(),
+                                    feedback.foreground()
+                                ),
+                                "{feedback.message}"
                             }
                         }
                     }
@@ -424,6 +485,19 @@ fn queue_advance(
     }
 }
 
+fn schedule_feedback_clear(
+    sender_slot: Rc<RefCell<Option<UnboundedSender<NBackEvent>>>>,
+    run_id: u64,
+    wait_ms: u64,
+) {
+    if let Some(sender) = sender_slot.borrow().as_ref().cloned() {
+        platform::spawn_future(async move {
+            timing::sleep_ms(wait_ms).await;
+            let _ = sender.unbounded_send(NBackEvent::ClearFeedback { run_id });
+        });
+    }
+}
+
 #[derive(Debug, Clone)]
 enum NBackEvent {
     StartPractice,
@@ -442,4 +516,39 @@ enum NBackEvent {
         timestamp: crate::core::timing::InstantStamp,
     },
     FocusLost,
+    ClearFeedback {
+        run_id: u64,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct FeedbackState {
+    message: String,
+    tone: FeedbackTone,
+}
+
+impl FeedbackState {
+    fn new<M: Into<String>>(message: M, tone: FeedbackTone) -> Self {
+        Self {
+            message: message.into(),
+            tone,
+        }
+    }
+
+    fn background(&self) -> &'static str {
+        match self.tone {
+            FeedbackTone::Positive => "rgba(52, 211, 153, 0.9)",
+            FeedbackTone::Negative => "rgba(248, 113, 113, 0.92)",
+        }
+    }
+
+    fn foreground(&self) -> &'static str {
+        "#041217"
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum FeedbackTone {
+    Positive,
+    Negative,
 }
