@@ -1,5 +1,6 @@
 //! High-resolution timing helpers usable in both WASM and native targets.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
