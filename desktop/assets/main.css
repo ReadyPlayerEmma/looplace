@@ -294,6 +294,10 @@ a:hover {
 
 .task-instructions summary {
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
     font-weight: 600;
     color: var(--color-text);
     list-style: none;
@@ -301,6 +305,22 @@ a:hover {
 
 .task-instructions summary::-webkit-details-marker {
     display: none;
+}
+
+.task-instructions summary::after {
+    content: "+";
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--color-text-muted);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.task-instructions summary:hover::after {
+    color: var(--color-text);
+}
+
+details[open] > summary::after {
+    content: "–";
 }
 
 .task-instructions__list {

@@ -251,18 +251,6 @@ pub fn NBackView() -> Element {
     rsx! {
         article { class: "task task-nback",
 
-            section { class: "task-card task-card--instructions task-nback__intro",
-                details { class: "task-instructions",
-                    summary { "How the task works" }
-                    ul { class: "task-instructions__list",
-                        li { "Each letter displays for 0.5 s, followed by 2.5 s of blank interval." }
-                        li { "Press space (or tap the pad) whenever the letter matches the one from two trials ago." }
-                        li { "Practice block lasts ~35 seconds; main run is about 3 minutes." }
-                        li { "Focus on accuracy first, then speed. False alarms tax d′ just like misses." }
-                    }
-                }
-            }
-
             if is_running {
                 section { class: "task-card task-card--canvas task-nback__canvas",
 
@@ -310,7 +298,16 @@ pub fn NBackView() -> Element {
                     }
                 }
             } else {
-                section { class: "task-card task-nback__controls",
+                section { class: "task-card task-card--instructions task-nback__controls",
+                    details { class: "task-instructions",
+                        summary { "How the task works" }
+                        ul { class: "task-instructions__list",
+                            li { "Each letter displays for 0.5 s, followed by 2.5 s of blank interval." }
+                            li { "Press space (or tap the pad) whenever the letter matches the one from two trials ago." }
+                            li { "Practice block lasts ~35 seconds; main run is about 3 minutes." }
+                            li { "Focus on accuracy first, then speed. False alarms tax d′ just like misses." }
+                        }
+                    }
 
                     div { class: "task-cta",
                         button {
@@ -324,42 +321,42 @@ pub fn NBackView() -> Element {
                             "Start main session"
                         }
                     }
+                }
 
-                    if let Some(metrics) = last_practice {
-                        div { class: "task-card--subtle task-nback__practice-summary",
-                            h3 { "Practice recap" }
-                            p { "Hits {metrics.hits} / {metrics.target_trials} • False alarms {metrics.false_alarms} • Accuracy {(metrics.accuracy * 100.0).round()}%" }
-                            if metrics.hits > 0 {
-                                p { "Median hit RT {format::format_ms(metrics.median_hit_rt_ms)}" }
-                            }
+                if let Some(metrics) = last_practice {
+                    section { class: "task-card task-card--subtle task-nback__practice-summary",
+                        h3 { "Practice recap" }
+                        p { "Hits {metrics.hits} / {metrics.target_trials} • False alarms {metrics.false_alarms} • Accuracy {(metrics.accuracy * 100.0).round()}%" }
+                        if metrics.hits > 0 {
+                            p { "Median hit RT {format::format_ms(metrics.median_hit_rt_ms)}" }
                         }
                     }
+                }
 
-                    if let Some(metrics) = latest_metrics {
-                        section { class: "task-card task-nback__metrics",
-                            h3 { "Last main session" }
-                            ul { class: "metrics-grid",
-                                li { "Hits: {metrics.hits} / {metrics.target_trials}" }
-                                li { "Misses: {metrics.misses}" }
-                                li { "False alarms: {metrics.false_alarms}" }
-                                li { "Correct rejections: {metrics.correct_rejections}" }
-                                li { "Accuracy: {(metrics.accuracy * 100.0).round()}%" }
-                                li { "d′: {metrics.d_prime:.2}" }
-                                li { "Criterion: {metrics.criterion:.2}" }
-                                li { "Median hit RT: {format::format_ms(metrics.median_hit_rt_ms)}" }
-                                li { "Mean hit RT: {format::format_ms(metrics.mean_hit_rt_ms)}" }
-                                li { "Hit RT p10/p90: {format::format_ms(metrics.p10_hit_rt_ms)} / {format::format_ms(metrics.p90_hit_rt_ms)}" }
-                            }
-                        }
-                    } else {
-                        section { class: "task-card task-nback__metrics task-metrics--placeholder",
-                            p { "Metrics will appear after the first completed session." }
+                if let Some(metrics) = latest_metrics {
+                    section { class: "task-card task-nback__metrics",
+                        h3 { "Last main session" }
+                        ul { class: "metrics-grid",
+                            li { "Hits: {metrics.hits} / {metrics.target_trials}" }
+                            li { "Misses: {metrics.misses}" }
+                            li { "False alarms: {metrics.false_alarms}" }
+                            li { "Correct rejections: {metrics.correct_rejections}" }
+                            li { "Accuracy: {(metrics.accuracy * 100.0).round()}%" }
+                            li { "d′: {metrics.d_prime:.2}" }
+                            li { "Criterion: {metrics.criterion:.2}" }
+                            li { "Median hit RT: {format::format_ms(metrics.median_hit_rt_ms)}" }
+                            li { "Mean hit RT: {format::format_ms(metrics.mean_hit_rt_ms)}" }
+                            li { "Hit RT p10/p90: {format::format_ms(metrics.p10_hit_rt_ms)} / {format::format_ms(metrics.p90_hit_rt_ms)}" }
                         }
                     }
-
-                    if let Some(err) = error_message {
-                        div { class: "task-error", "⚠️ {err}" }
+                } else {
+                    section { class: "task-card task-nback__metrics task-metrics--placeholder",
+                        p { "Metrics will appear after the first completed session." }
                     }
+                }
+
+                if let Some(err) = error_message {
+                    div { class: "task-error", "⚠️ {err}" }
                 }
             }
         }
