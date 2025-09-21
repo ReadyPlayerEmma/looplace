@@ -256,6 +256,15 @@ pub fn PvtView() -> Element {
         EngineState::Aborted => "Run cancelled. Start to retry.".to_string(),
     };
 
+    let indicator_value = indicator_text();
+    let indicator_class = if is_stimulus_active {
+        "task-pvt__indicator task-pvt__indicator--armed"
+    } else if indicator_value == "WAIT" {
+        "task-pvt__indicator task-pvt__indicator--waiting"
+    } else {
+        "task-pvt__indicator"
+    };
+
     rsx! {
         article { class: "task task-pvt",
             if is_running {
@@ -281,7 +290,7 @@ pub fn PvtView() -> Element {
                             }
                         },
 
-                        div { class: if is_stimulus_active { "task-pvt__indicator task-pvt__indicator--armed" } else { "task-pvt__indicator" }, {indicator_text()} }
+                        div { class: indicator_class, "{indicator_value}" }
                     }
 
                     div { class: "task-guidance task-guidance--overlay", "{guidance_text}" }

@@ -261,6 +261,10 @@ a:hover {
     transition: color 0.2s ease;
 }
 
+.task-pvt__indicator--waiting {
+    color: rgba(245, 247, 251, 0.7);
+}
+
 .task-pvt__indicator--armed {
     color: var(--color-primary);
 }

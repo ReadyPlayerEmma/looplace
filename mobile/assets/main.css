@@ -1,7 +1,7 @@
 body {
     background-color: #0f1116;
     color: #ffffff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     margin: 16px;
 }
 
@@ -252,6 +252,10 @@ body {
 
 .task-pvt__indicator {
     transition: color 0.2s ease;
+}
+
+.task-pvt__indicator--waiting {
+    color: rgba(245, 247, 251, 0.7);
 }
 
 .task-pvt__indicator--armed {
