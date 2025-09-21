@@ -203,9 +203,9 @@ pub fn NBackView() -> Element {
     };
 
     let respond_now = {
-        let send_event = send_event.clone();
+        let send_event_handle = send_event;
         move || {
-            send_event(NBackEvent::Respond {
+            send_event_handle(NBackEvent::Respond {
                 timestamp: timing::now(),
             });
         }

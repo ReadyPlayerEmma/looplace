@@ -374,7 +374,7 @@ impl NBackEngine {
     }
 
     fn seeded_rng(&self, mode: RunMode) -> StdRng {
-        let combined_seed = self.config.seed ^ mode.seed_tag() ^ self.run_id as u64;
+        let combined_seed = self.config.seed ^ mode.seed_tag() ^ self.run_id;
         StdRng::seed_from_u64(combined_seed)
     }
 }
