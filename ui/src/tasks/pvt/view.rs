@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use dioxus::events::{MountedData, MountedEvent};
+use dioxus::prelude::spawn;
 use dioxus::prelude::*;
 use futures_channel::mpsc::UnboundedSender;
 use futures_util::StreamExt;
@@ -22,6 +24,7 @@ pub fn PvtView() -> Element {
     let last_metrics = use_signal(|| Option::<PvtMetrics>::None);
     let indicator_text = use_signal(|| "READY".to_string());
     let last_error = use_signal(|| Option::<String>::None);
+    let focus_target = use_signal(|| Option::<Rc<MountedData>>::None);
 
     let sender_slot: Rc<RefCell<Option<UnboundedSender<PvtEvent>>>> = Rc::new(RefCell::new(None));
     let sender_slot_for_loop = sender_slot.clone();
@@ -32,6 +35,7 @@ pub fn PvtView() -> Element {
         let metrics_ref = last_metrics;
         let indicator_ref = indicator_text;
         let error_ref = last_error;
+        let focus_ref = focus_target;
 
         use_coroutine(move |mut rx: UnboundedReceiver<PvtEvent>| {
             let sender_slot = sender_slot_for_loop.clone();
@@ -40,6 +44,7 @@ pub fn PvtView() -> Element {
             let mut metrics_signal = metrics_ref;
             let mut indicator_signal = indicator_ref;
             let mut error_signal = error_ref;
+            let focus_signal = focus_ref;
 
             async move {
                 while let Some(event) = rx.next().await {
@@ -49,6 +54,7 @@ pub fn PvtView() -> Element {
                             metrics_signal.set(None);
                             qc_signal.set(QualityFlags::pristine());
                             indicator_signal.set("WAIT".to_string());
+                            focus_reaction_target(focus_signal);
 
                             let scheduled = engine_signal.with_mut(|eng| eng.start());
                             if let Some(schedule) = scheduled {
@@ -71,6 +77,7 @@ pub fn PvtView() -> Element {
                                 }
                                 if eng.mark_stimulus_on(trial_index, timing::now()) {
                                     indicator_signal.set("000".to_string());
+                                    focus_reaction_target(focus_signal);
                                     Some(eng.config.max_response_ms)
                                 } else {
                                     None
@@ -118,6 +125,7 @@ pub fn PvtView() -> Element {
                                         _ => {}
                                     }
                                     queue_stimulus(sender_slot.clone(), schedule);
+                                    focus_reaction_target(focus_signal);
                                 }
                                 ResponseOutcome::RunCompleted => {
                                     finalize_run(
@@ -149,6 +157,7 @@ pub fn PvtView() -> Element {
                                     let run_id = engine_signal.with(|eng| eng.run_id);
                                     schedule_indicator_reset(sender_slot.clone(), run_id);
                                     queue_stimulus(sender_slot.clone(), schedule);
+                                    focus_reaction_target(focus_signal);
                                 }
                                 ResponseOutcome::RunCompleted => {
                                     indicator_signal.set("LAP".to_string());
@@ -196,6 +205,7 @@ pub fn PvtView() -> Element {
 
                             if should_reset {
                                 indicator_signal.set("WAIT".to_string());
+                                focus_reaction_target(focus_signal);
                             }
                         }
                         PvtEvent::FocusLost => {
@@ -280,6 +290,14 @@ pub fn PvtView() -> Element {
                         class: "task-pvt__hitbox",
                         aria_label: "PVT reaction target",
                         autofocus: true,
+                        onmounted: {
+                            let mut focus_signal = focus_target;
+                            move |evt: MountedEvent| {
+                                let mounted = evt.data();
+                                focus_signal.set(Some(mounted));
+                                focus_reaction_target(focus_signal);
+                            }
+                        },
                         onfocusout: move |_| send_event(PvtEvent::FocusLost),
                         onclick: move |_| respond_now(),
                         onkeydown: move |evt| {
@@ -437,6 +455,14 @@ fn schedule_indicator_reset(
         platform::spawn_future(async move {
             timing::sleep_ms(FEEDBACK_HOLD_MS).await;
             let _ = sender.unbounded_send(PvtEvent::ResetIndicator { run_id });
+        });
+    }
+}
+
+fn focus_reaction_target(focus_signal: Signal<Option<Rc<MountedData>>>) {
+    if let Some(target) = focus_signal() {
+        spawn(async move {
+            let _ = target.set_focus(true).await;
         });
     }
 }
