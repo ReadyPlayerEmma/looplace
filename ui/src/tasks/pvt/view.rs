@@ -233,6 +233,7 @@ pub fn PvtView() -> Element {
         engine_snapshot.state,
         EngineState::Waiting { .. } | EngineState::StimulusActive { .. }
     );
+    let is_stimulus_active = matches!(engine_snapshot.state, EngineState::StimulusActive { .. });
     let trial_progress = engine_snapshot
         .trials
         .iter()
@@ -280,7 +281,7 @@ pub fn PvtView() -> Element {
                             }
                         },
 
-                        div { class: "task-pvt__indicator", {indicator_text()} }
+                        div { class: if is_stimulus_active { "task-pvt__indicator task-pvt__indicator--armed" } else { "task-pvt__indicator" }, {indicator_text()} }
                     }
 
                     div { class: "task-guidance task-guidance--overlay", "{guidance_text}" }

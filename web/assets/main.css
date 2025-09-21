@@ -257,6 +257,12 @@ a:hover {
     font-size: 6rem;
     letter-spacing: 0.2rem;
     font-family: "JetBrains Mono", "Fira Mono", monospace;
+    color: var(--color-text);
+    transition: color 0.2s ease;
+}
+
+.task-pvt__indicator--armed {
+    color: var(--color-primary);
 }
 
 .task-nback__glyph {

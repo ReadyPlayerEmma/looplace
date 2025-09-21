@@ -250,6 +250,14 @@ body {
     color: rgba(255, 255, 255, 0.7);
 }
 
+.task-pvt__indicator {
+    transition: color 0.2s ease;
+}
+
+.task-pvt__indicator--armed {
+    color: #f05a7e;
+}
+
 .results-export__summary {
     list-style: none;
     margin: 0;
