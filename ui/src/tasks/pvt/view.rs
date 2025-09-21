@@ -311,12 +311,12 @@ pub fn PvtView() -> Element {
                     class: "task-pvt__prelude",
                     style: "display:flex; flex-direction:column; gap:1rem;",
 
-                    h2 { "Psychomotor Vigilance Task" }
+                    h2 { "How it works" }
                     p {
-                        "Wait for the millisecond counter to appear, then tap or press space as quickly as possible. This mirrors the classic PVT-192 stimulus so results stay comparable."
+                        "Wait until the millisecond counter appears in the centre, then tap or press space immediately."
                     }
                     p {
-                        "Inter-trial interval: 2–10 seconds (uniform). False starts add extra delay, lapses ≥500 ms are flagged."
+                        "This implementation mirrors the canonical PVT-192 stimulus: 2–10 s uniform jitter, false starts add delay, lapses ≥500 ms are flagged."
                     }
 
                     div { style: "display:flex; gap:1rem; align-items:center;",
