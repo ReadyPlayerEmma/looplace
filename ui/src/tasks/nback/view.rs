@@ -347,7 +347,7 @@ pub fn NBackView() -> Element {
                         }
                         button {
                             class: "task-nback__start-main",
-                            style: "padding:0.75rem 1.5rem; border-radius:999px; border:1px solid rgba(0,0,0,0.12); background:rgba(0,0,0,0.03); font-size:1rem; font-weight:600; cursor:pointer;",
+                            style: "padding:0.75rem 1.5rem; border-radius:999px; border:none; background:#f05a7e; color:#fff; font-size:1rem; font-weight:600; cursor:pointer;",
                             onclick: move |_| send_event(NBackEvent::StartMain),
                             "Start main session"
                         }
