@@ -24,7 +24,7 @@
   ```rust
   pub mod views { pub use crate::views::{Home, Pvt, NBack2, Results}; }
   pub mod components { pub use crate::navbar::Navbar; }
-````
+  ````
 
 * [x] **Web routes** (`web/src/main.rs`): keep the template’s local `Route` and point to `ui` views:
 
