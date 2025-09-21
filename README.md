@@ -229,6 +229,12 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 * **Feature flags**: prefer small, descriptive `cfg(feature = "...")` toggles for experimental tasks.
 * **Papercut sweep**: park recurring friction in the TODO log after each playtest so small regressions don’t pile up and dull the joy.
 
+## CI & deployment
+
+* `Build (Desktop)` runs on every push/PR and currently produces a release build for macOS Apple Silicon. Add more targets by expanding the workflow matrix when we are ready.
+* `Release (Desktop)` fires on tags matching `v*.*.*`, zips the macOS Apple Silicon build, and attaches it to the corresponding GitHub release.
+* `Deploy (CF Pages)` is opt-in via the Actions UI (`workflow_dispatch`); uncomment the push trigger in `.github/workflows/deploy-pages.yml` once continuous deploys are desired and ensure `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets are set.
+
 ---
 
 ## Contributing conventions

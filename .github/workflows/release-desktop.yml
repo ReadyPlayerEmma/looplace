@@ -31,7 +31,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build (release)
-        run: cargo build --release -p desktop --features desktop
+        run: cargo build --release -p desktop --features desktop --target ${{ matrix.target }}
 
       - name: Package artifact
         shell: bash
