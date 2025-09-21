@@ -8,7 +8,7 @@ pub fn NBack2() -> Element {
         section { class: "page page-nback",
             h1 { "2-back Working Memory" }
             p {
-                "Start with a short guided warm-up, then cycle through the 2-back stream to capture sensitivity (d′), response bias, and reaction-time trends."
+                "Start with a short guided warm-up, then follow the 2-back stream—respond whenever the letter matches the one from two trials ago to capture sensitivity (d′), response bias, and reaction-time trends."
             }
             NBackView {}
         }

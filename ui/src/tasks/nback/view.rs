@@ -254,9 +254,6 @@ pub fn NBackView() -> Element {
 
             section { class: "task-nback__intro",
                 style: "display:flex; flex-direction:column; gap:0.5rem;",
-                h2 { "2-back working memory" }
-                p { "Watch the letter stream and respond when the current letter matches the one from two steps ago." }
-
                 details {
                     class: "task-nback__instructions",
                     style: "background:rgba(255,255,255,0.04); border-radius:12px; padding:1rem 1.25rem;",
