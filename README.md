@@ -19,6 +19,7 @@ Our goal is to keep the tools approachable while layering in richer analysis: jo
 - **2-back working-memory task** with a short practice block, d′/criterion metrics, and immediate response feedback.
 - **Local-first storage**: every run produces a lightweight JSON summary ready for export or deeper analysis.
 - **Shared UI crate** so additions land across desktop, web, and mobile with minimal effort.
+- **Unified task design system**: both tasks share consistent task cards, primary/secondary buttons, expandable instructions, and at-a-glance metrics.
 
 ---
 
@@ -38,6 +39,8 @@ dx serve --platform desktop
 ```
 
 For additional targets, workspace layout, accessibility/timing guidelines, and deployment notes, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+Design choices and the shared component system are documented under “UI design system” in that guide.
 
 ---
 

@@ -126,6 +126,26 @@ Summaries are stored under the localStorage key `looplace_summaries` as a JSON a
 - Refer to `TODO.md` for roadmap items (M2 Results UI, exports, etc.).
 - Cloudflare deployment is currently paused. The workflow lives at `.github/workflows/deploy-pages.yml.disabled`; restore the filename plus `CF_API_TOKEN`/`CF_ACCOUNT_ID` secrets to re-enable.
 
+### UI design system
+
+- The global palette and component tokens live in `web/assets/main.css` (mirrored in `desktop/assets/main.css`). Key variables:
+  - `--color-primary` (`#f05a7e`) for primary CTA buttons.
+  - `--color-accent` (`#1f68ff`) for secondary actions and informative highlights.
+  - `--color-surface` / `--color-surface-strong` for layered cards.
+- Buttons should use the shared classes:
+  - `button button--primary` for main actions (start runs).
+  - `button button--accent` for secondary actions (practice).
+  - `button button--ghost button--compact` for canvas-level cancel controls.
+- Task layout primitives:
+  - `task-card task-card--instructions` for the instruction + CTA sections (PVT + 2-back share this structure).
+  - `task-card task-card--canvas` for active run surfaces.
+  - `task-card task-card--subtle` for lightweight recap cards (e.g., practice summary).
+  - `metrics-grid` for presenting summary stats.
+- Accordions use `details.task-instructions` with a built-in “+ / –” indicator; keep headings short and informative.
+- Progress badges rely on `task-progress` and `task-progress--overlay` classes—avoid custom absolute positioning unless necessary.
+- Feedback chips (`task-feedback` with `task-feedback--positive|negative`) provide consistent in-run acknowledgement; reuse these tone classes for new tasks.
+- When introducing new screens, prefer the existing `task`, `task-card`, and `button` primitives to maintain coherence and reduce bespoke CSS.
+
 ---
 
 ## Need help?
