@@ -8,6 +8,6 @@ dioxus = { workspace = true, features = ["router"] }
 ui = { workspace = true }
 
 [features]
-default = []
+default = ["desktop"]
 desktop = ["dioxus/desktop"]
 server = ["dioxus/server"]
