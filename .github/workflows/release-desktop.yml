@@ -40,6 +40,9 @@ jobs:
           OUT="looplace-desktop-${{ github.ref_name }}-${{ matrix.target }}"
           mkdir -p "dist/$OUT"
           cp "$APP_DIR/${{ matrix.bin }}" "dist/$OUT/"
+          if [ -d desktop/assets ]; then
+            cp -R desktop/assets "dist/$OUT/"
+          fi
           cd dist
           zip -r "$OUT.zip" "$OUT"
 
