@@ -33,8 +33,10 @@
 - macOS binaries are ad-hoc signed; first launch may need `xattr -cr Looplace.app` or right-click → Open.
 - Windows zip expects `Looplace.exe` at the root with an `assets/` folder; keep that layout stable.
 - `ui/src/navbar.rs` inlines CSS for release builds—maintain parity if adding new global styles.
+- Windows WebView2 drops `autofocus` on dynamically inserted nodes; capture the mounted PVT hitbox (`MountedEvent`) and call `set_focus(true)` via `dioxus::prelude::spawn` whenever runs start or advance so keyboard input stays live.
 - The `scripts/macos/bundle.sh` script can take `SIGN_IDENTITY` env once Developer ID certificates return.
 - Remember to update docs (`README.md`, `TODO.md`, `AGENTS.md`) whenever workflows or roadmaps shift.
+- When release smoke uncovers issues, use `gh issue view`/`gh issue comment` to triage and reply quickly from the CLI; note key repro steps and request retests once fixes land.
 
 ## Research + questions backlog
 - Record any Dioxus API changes or workarounds discovered mid-task.
