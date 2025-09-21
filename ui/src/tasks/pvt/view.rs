@@ -12,12 +12,15 @@ use crate::core::{format, platform, storage, timing};
 use super::engine::{EngineState, PvtEngine, ResponseOutcome, ScheduledStimulus, TrialOutcome};
 use super::metrics::PvtMetrics;
 
+const TICK_INTERVAL_MS: u64 = 33;
+const FEEDBACK_HOLD_MS: u64 = 900;
+
 #[component]
 pub fn PvtView() -> Element {
     let engine = use_signal(PvtEngine::default);
     let qc_flags = use_signal(QualityFlags::pristine);
     let last_metrics = use_signal(|| Option::<PvtMetrics>::None);
-    let status_line = use_signal(|| "Press start to begin.".to_string());
+    let indicator_text = use_signal(|| "READY".to_string());
     let last_error = use_signal(|| Option::<String>::None);
 
     let sender_slot: Rc<RefCell<Option<UnboundedSender<PvtEvent>>>> = Rc::new(RefCell::new(None));
@@ -27,7 +30,7 @@ pub fn PvtView() -> Element {
         let engine_ref = engine.clone();
         let qc_ref = qc_flags.clone();
         let metrics_ref = last_metrics.clone();
-        let status_ref = status_line.clone();
+        let indicator_ref = indicator_text.clone();
         let error_ref = last_error.clone();
 
         use_coroutine(move |mut rx: UnboundedReceiver<PvtEvent>| {
@@ -35,7 +38,7 @@ pub fn PvtView() -> Element {
             let mut engine_signal = engine_ref.clone();
             let mut qc_signal = qc_ref.clone();
             let mut metrics_signal = metrics_ref.clone();
-            let mut status_signal = status_ref.clone();
+            let mut indicator_signal = indicator_ref.clone();
             let mut error_signal = error_ref.clone();
 
             async move {
@@ -45,18 +48,18 @@ pub fn PvtView() -> Element {
                             error_signal.set(None);
                             metrics_signal.set(None);
                             qc_signal.set(QualityFlags::pristine());
+                            indicator_signal.set("WAIT".to_string());
 
                             let scheduled = engine_signal.with_mut(|eng| eng.start());
                             if let Some(schedule) = scheduled {
-                                status_signal.set("Get ready for the first cue.".to_string());
                                 queue_stimulus(sender_slot.clone(), schedule);
                             } else {
-                                status_signal.set("Run already in progress.".to_string());
+                                indicator_signal.set("RUN".to_string());
                             }
                         }
                         PvtEvent::Abort => {
                             engine_signal.with_mut(|eng| eng.abort());
-                            status_signal.set("Run aborted.".to_string());
+                            indicator_signal.set("ABORT".to_string());
                         }
                         PvtEvent::StimulusReady {
                             run_id,
@@ -67,7 +70,7 @@ pub fn PvtView() -> Element {
                                     return None;
                                 }
                                 if eng.mark_stimulus_on(trial_index, timing::now()) {
-                                    status_signal.set("GO! Respond now.".to_string());
+                                    indicator_signal.set("000".to_string());
                                     Some(eng.config.max_response_ms)
                                 } else {
                                     None
@@ -76,6 +79,7 @@ pub fn PvtView() -> Element {
 
                             if let Some(window_ms) = maybe_window {
                                 queue_timeout(sender_slot.clone(), run_id, trial_index, window_ms);
+                                schedule_tick(sender_slot.clone(), run_id);
                             }
                         }
                         PvtEvent::Respond { timestamp } => {
@@ -92,15 +96,27 @@ pub fn PvtView() -> Element {
                                             .map(|trial| trial.outcome.clone())
                                     });
 
-                                    if let Some(TrialOutcome::Reaction { rt_ms }) = last_outcome {
-                                        status_signal.set(format!(
-                                            "Reaction captured: {}",
-                                            format::format_ms(rt_ms)
-                                        ));
-                                    } else {
-                                        status_signal.set("False start registered.".to_string());
+                                    match last_outcome {
+                                        Some(TrialOutcome::Reaction { rt_ms }) => {
+                                            indicator_signal.set(format!(
+                                                "{:03}",
+                                                rt_ms.round().clamp(0.0, 999.0) as u32
+                                            ));
+                                            let run_id = engine_signal.with(|eng| eng.run_id);
+                                            schedule_indicator_reset(sender_slot.clone(), run_id);
+                                        }
+                                        Some(TrialOutcome::FalseStart) => {
+                                            indicator_signal.set("FS".to_string());
+                                            let run_id = engine_signal.with(|eng| eng.run_id);
+                                            schedule_indicator_reset(sender_slot.clone(), run_id);
+                                        }
+                                        Some(TrialOutcome::Lapse) => {
+                                            indicator_signal.set("LAP".to_string());
+                                            let run_id = engine_signal.with(|eng| eng.run_id);
+                                            schedule_indicator_reset(sender_slot.clone(), run_id);
+                                        }
+                                        _ => {}
                                     }
-
                                     queue_stimulus(sender_slot.clone(), schedule);
                                 }
                                 ResponseOutcome::RunCompleted => {
@@ -108,7 +124,7 @@ pub fn PvtView() -> Element {
                                         &engine_signal,
                                         qc_signal.clone(),
                                         metrics_signal.clone(),
-                                        status_signal.clone(),
+                                        indicator_signal.clone(),
                                         error_signal.clone(),
                                     );
                                 }
@@ -129,20 +145,57 @@ pub fn PvtView() -> Element {
 
                             match outcome {
                                 ResponseOutcome::NextScheduled(schedule) => {
-                                    status_signal
-                                        .set("Lapse recorded. Next cue pending.".to_string());
+                                    indicator_signal.set("LAP".to_string());
+                                    let run_id = engine_signal.with(|eng| eng.run_id);
+                                    schedule_indicator_reset(sender_slot.clone(), run_id);
                                     queue_stimulus(sender_slot.clone(), schedule);
                                 }
                                 ResponseOutcome::RunCompleted => {
+                                    indicator_signal.set("LAP".to_string());
                                     finalize_run(
                                         &engine_signal,
                                         qc_signal.clone(),
                                         metrics_signal.clone(),
-                                        status_signal.clone(),
+                                        indicator_signal.clone(),
                                         error_signal.clone(),
                                     );
                                 }
                                 ResponseOutcome::Ignored => {}
+                            }
+                        }
+                        PvtEvent::Tick { run_id } => {
+                            let continue_loop = engine_signal.with(|eng| {
+                                if eng.run_id != run_id {
+                                    return false;
+                                }
+
+                                if let EngineState::StimulusActive { trial_index } = eng.state {
+                                    if let Some(trial) = eng.trials.get(trial_index) {
+                                        if let Some(onset) = trial.stimulus_onset {
+                                            let elapsed = timing::duration_ms(onset, timing::now());
+                                            let clamped = elapsed.clamp(0.0, 999.0);
+                                            indicator_signal
+                                                .set(format!("{:03}", clamped.round() as u32));
+                                            return true;
+                                        }
+                                    }
+                                }
+
+                                false
+                            });
+
+                            if continue_loop {
+                                schedule_tick(sender_slot.clone(), run_id);
+                            }
+                        }
+                        PvtEvent::ResetIndicator { run_id } => {
+                            let should_reset = engine_signal.with(|eng| {
+                                eng.run_id == run_id
+                                    && matches!(eng.state, EngineState::Waiting { .. })
+                            });
+
+                            if should_reset {
+                                indicator_signal.set("WAIT".to_string());
                             }
                         }
                         PvtEvent::FocusLost => {
@@ -190,77 +243,127 @@ pub fn PvtView() -> Element {
     let latest_metrics = last_metrics();
     let error_message = last_error();
 
+    let guidance_text = match engine_snapshot.state {
+        EngineState::Idle => {
+            "Press start, then wait for the milliseconds counter to appear.".to_string()
+        }
+        EngineState::Waiting { .. } => "Hold steady… the counter will appear soon.".to_string(),
+        EngineState::StimulusActive { .. } => {
+            "Tap or press space the moment the counter appears.".to_string()
+        }
+        EngineState::Completed => "Session complete. Start again when ready.".to_string(),
+        EngineState::Aborted => "Run cancelled. Start to retry.".to_string(),
+    };
+
     rsx! {
         article { class: "task task-pvt",
-            div { class: "task-pvt__header",
-                h2 { "Psychomotor Vigilance Task" }
-                p { "Focus on the panel below. Press the space bar or tap as soon as the stimulus appears." }
-            }
+            style: "display:flex; flex-direction:column; gap:2rem;",
 
-            div { class: "task-pvt__controls",
-                button {
-                    r#type: "button",
-                    class: "task-pvt__start",
-                    disabled: is_running,
-                    onclick: move |_| send_event(PvtEvent::Start),
-                    "Start"
-                }
-                button {
-                    r#type: "button",
-                    class: "task-pvt__abort",
-                    disabled: !is_running,
-                    onclick: move |_| send_event(PvtEvent::Abort),
-                    "Abort"
-                }
-                span { class: "task-pvt__progress",
-                    "Trials: {trial_progress}/{total_target}"
-                }
-            }
+            if is_running {
+                div {
+                    class: "task-pvt__canvas",
+                    style: "position:relative; min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#05060a; color:#f7f7f7; border-radius:16px;",
 
-            div {
-                class: "task-pvt__target",
-                tabindex: 0,
-                role: "button",
-                aria_label: "PVT reaction target",
-                onfocusout: move |_| send_event(PvtEvent::FocusLost),
-                onclick: move |_| respond_now(),
-                onkeydown: move |evt| {
-                    let key = evt.key().to_string().to_lowercase();
-                    if key == " " || key == "space" || key == "spacebar" || key == "enter" {
-                        evt.prevent_default();
-                        respond_now();
+                    button {
+                        class: "task-pvt__cancel",
+                        style: "position:absolute; top:1.5rem; left:1.5rem; background:transparent; color:#f7f7f7; border:1px solid rgba(247,247,247,0.4); padding:0.5rem 1rem; border-radius:999px; font-size:0.9rem;",
+                        onclick: move |_| send_event(PvtEvent::Abort),
+                        "Cancel"
                     }
-                },
-                {status_line()}
-            }
 
-            if let Some(metrics) = latest_metrics {
-                div { class: "task-pvt__metrics",
-                    h3 { "Session metrics" }
-                    ul {
-                        li { "Median RT: {format::format_ms(metrics.median_rt_ms)}" }
-                        li { "Mean RT: {format::format_ms(metrics.mean_rt_ms)}" }
-                        li { "SD RT: {format::format_ms(metrics.sd_rt_ms)}" }
-                        li { "10th percentile: {format::format_ms(metrics.p10_rt_ms)}" }
-                        li { "90th percentile: {format::format_ms(metrics.p90_rt_ms)}" }
-                        li { "Lapses ≥500 ms: {metrics.lapses_ge_500ms}" }
-                        li { "Minor lapses 355–499 ms: {metrics.minor_lapses_355_499ms}" }
-                        li { "False starts: {metrics.false_starts}" }
-                        li { "Slope: {format::format_slope(metrics.time_on_task_slope_ms_per_min)}" }
-                        li {
-                            "Min trials met: "
-                            if metrics.meets_min_trial_requirement { "Yes" } else { "No" }
+                    div {
+                        class: "task-pvt__hitbox",
+                        tabindex: 0,
+                        role: "button",
+                        aria_label: "PVT reaction target",
+                        style: "position:absolute; inset:0; display:flex; align-items:center; justify-content:center;",
+                        onfocusout: move |_| send_event(PvtEvent::FocusLost),
+                        onclick: move |_| respond_now(),
+                        onkeydown: move |evt| {
+                            let key = evt.key().to_string().to_lowercase();
+                            if key == " " || key == "space" || key == "spacebar" || key == "enter" {
+                                evt.prevent_default();
+                                respond_now();
+                            }
+                        },
+
+                        div {
+                            class: "task-pvt__indicator",
+                            style: "font-size:6rem; letter-spacing:0.2rem; font-family:'JetBrains Mono', 'Fira Mono', monospace;",
+                            {indicator_text()}
                         }
+                    }
+
+                    div {
+                        class: "task-pvt__message",
+                        style: "position:absolute; bottom:2rem; text-align:center; font-size:1rem; color:rgba(247,247,247,0.8);",
+                        "{guidance_text}"
+                    }
+
+                    div {
+                        class: "task-pvt__progress",
+                        style: "position:absolute; top:1.5rem; right:1.5rem; font-size:0.9rem; letter-spacing:0.1rem; color:rgba(247,247,247,0.7);",
+                        "{trial_progress}/{total_target}"
                     }
                 }
             } else {
-                div { class: "task-pvt__metrics task-pvt__metrics--placeholder",
-                    p { "Metrics will appear after the current run finishes." }
+                section {
+                    class: "task-pvt__prelude",
+                    style: "display:flex; flex-direction:column; gap:1rem;",
+
+                    h2 { "Psychomotor Vigilance Task" }
+                    p {
+                        "Wait for the millisecond counter to appear, then tap or press space as quickly as possible. This mirrors the classic PVT-192 stimulus so results stay comparable."
+                    }
+                    p {
+                        "Inter-trial interval: 2–10 seconds (uniform). False starts add extra delay, lapses ≥500 ms are flagged."
+                    }
+
+                    div { style: "display:flex; gap:1rem; align-items:center;",
+                        button {
+                            r#type: "button",
+                            class: "task-pvt__start",
+                            style: "padding:0.75rem 1.75rem; font-size:1rem; border-radius:999px; border:none; background:#f05a7e; color:#fff; font-weight:600;",
+                            onclick: move |_| send_event(PvtEvent::Start),
+                            "Start"
+                        }
+                        span { style: "color:#666;", "{guidance_text}" }
+                    }
                 }
             }
 
-            if let Some(err) = error_message {
-                div { class: "task-pvt__error", "⚠️ {err}" }
+            if !is_running {
+                if let Some(metrics) = latest_metrics {
+                    div { class: "task-pvt__metrics",
+                        style: "display:flex; flex-direction:column; gap:0.5rem;",
+                        h3 { "Last session" }
+                        ul {
+                            style: "display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.5rem; list-style:none; padding:0;",
+                            li { "Median RT: {format::format_ms(metrics.median_rt_ms)}" }
+                            li { "Mean RT: {format::format_ms(metrics.mean_rt_ms)}" }
+                            li { "SD RT: {format::format_ms(metrics.sd_rt_ms)}" }
+                            li { "P10: {format::format_ms(metrics.p10_rt_ms)}" }
+                            li { "P90: {format::format_ms(metrics.p90_rt_ms)}" }
+                            li { "Lapses ≥500 ms: {metrics.lapses_ge_500ms}" }
+                            li { "Minor lapses 355–499 ms: {metrics.minor_lapses_355_499ms}" }
+                            li { "False starts: {metrics.false_starts}" }
+                            li { "Slope: {format::format_slope(metrics.time_on_task_slope_ms_per_min)}" }
+                            li {
+                                "Min trials met: "
+                                if metrics.meets_min_trial_requirement { "Yes" } else { "No" }
+                            }
+                        }
+                    }
+                } else {
+                    div { class: "task-pvt__metrics task-pvt__metrics--placeholder",
+                        style: "padding:1rem 1.5rem; border-radius:12px; background:rgba(255,255,255,0.04); color:#666;",
+                        p { "Metrics will appear after the first completed run." }
+                    }
+                }
+
+                if let Some(err) = error_message {
+                    div { class: "task-pvt__error", style: "color:#c21d4a; font-weight:600;", "⚠️ {err}" }
+                }
             }
         }
     }
@@ -270,7 +373,7 @@ fn finalize_run(
     engine: &Signal<PvtEngine>,
     mut qc_flags: Signal<QualityFlags>,
     mut last_metrics: Signal<Option<PvtMetrics>>,
-    mut status_line: Signal<String>,
+    mut indicator_text: Signal<String>,
     mut last_error: Signal<Option<String>>,
 ) {
     if let Some(metrics) = engine.with(|eng| eng.metrics()) {
@@ -284,7 +387,7 @@ fn finalize_run(
                     last_error.set(Some(format!("Failed to persist summary: {err}")));
                 } else {
                     last_error.set(None);
-                    status_line.set("Session complete. Summary saved.".to_string());
+                    indicator_text.set("DONE".to_string());
                 }
             }
             Err(err) => {
@@ -328,6 +431,27 @@ fn queue_timeout(
     }
 }
 
+fn schedule_tick(sender_slot: Rc<RefCell<Option<UnboundedSender<PvtEvent>>>>, run_id: u64) {
+    if let Some(sender) = sender_slot.borrow().as_ref().cloned() {
+        platform::spawn_future(async move {
+            timing::sleep_ms(TICK_INTERVAL_MS).await;
+            let _ = sender.unbounded_send(PvtEvent::Tick { run_id });
+        });
+    }
+}
+
+fn schedule_indicator_reset(
+    sender_slot: Rc<RefCell<Option<UnboundedSender<PvtEvent>>>>,
+    run_id: u64,
+) {
+    if let Some(sender) = sender_slot.borrow().as_ref().cloned() {
+        platform::spawn_future(async move {
+            timing::sleep_ms(FEEDBACK_HOLD_MS).await;
+            let _ = sender.unbounded_send(PvtEvent::ResetIndicator { run_id });
+        });
+    }
+}
+
 #[derive(Debug, Clone)]
 enum PvtEvent {
     Start,
@@ -335,5 +459,7 @@ enum PvtEvent {
     StimulusReady { run_id: u64, trial_index: usize },
     Timeout { run_id: u64, trial_index: usize },
     Respond { timestamp: InstantStamp },
+    Tick { run_id: u64 },
+    ResetIndicator { run_id: u64 },
     FocusLost,
 }
