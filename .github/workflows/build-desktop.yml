@@ -98,6 +98,7 @@ jobs:
           if (Test-Path "desktop/assets") {
             Copy-Item "desktop/assets" (Join-Path $dest "assets") -Recurse
           }
+          Rename-Item (Join-Path $dest ${{ matrix.bin }}) "Looplace.exe"
           Compress-Archive -Path $dest -DestinationPath (Join-Path "dist" "$out.zip") -Force
 
       - name: Upload artifact
