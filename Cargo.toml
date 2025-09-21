@@ -8,6 +8,10 @@ members = [
     "api",
 ]
 
+[workspace.package]
+authors = ["ReadyPlayerEmma <emma@readyplayeremma.com>"]
+license = "MPL-2.0"
+
 [workspace.dependencies]
 dioxus = { version = "0.6.3" }
 

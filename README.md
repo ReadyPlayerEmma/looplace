@@ -161,6 +161,12 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 
 ---
 
+## License
+
+Looplace is released under the [Mozilla Public License 2.0](./LICENSE).
+
+---
+
 ## Data model (v0)
 
 ```json
