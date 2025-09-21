@@ -1,0 +1,58 @@
+name: Deploy (CF Pages)
+
+# Auto deploy disabled by default; trigger manually via workflow_dispatch.
+# Uncomment the push trigger below to restore continuous deploys.
+# on:
+#   push:
+#     branches: [ main ]
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            ui -> target
+            web -> target
+
+      - name: Install dioxus-cli
+        run: |
+          curl -fsSL https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-installer.sh | bash
+          cargo binstall -y --no-confirm dioxus-cli@0.6.3 || cargo install --locked dioxus-cli@0.6.3
+
+      - name: Build web (release)
+        run: dx build --release --package web
+
+      - name: Add SPA metadata
+        run: |
+          OUT=target/dx/web/release/web/public
+          printf "/* /index.html 200\n" > "$OUT/_redirects"
+          cat > "$OUT/_headers" <<'HEADERS'
+/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+HEADERS
+
+      - name: Deploy to Cloudflare Pages
+        run: |
+          npm i -g wrangler
+          wrangler pages deploy target/dx/web/release/web/public \
+            --project-name looplace \
+            --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}

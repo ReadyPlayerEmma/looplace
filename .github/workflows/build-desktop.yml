@@ -1,0 +1,54 @@
+name: Build (Desktop)
+
+# Push/PR triggers are active; adjust matrix below to add more platforms when ready.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} • ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Initial smoke build: macOS Apple Silicon only.
+          # Reintroduce Windows/x86 rows once the flow is proven out.
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin: desktop
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build (release)
+        run: cargo build --release -p desktop --features desktop
+        env:
+          RUSTFLAGS: -C target-cpu=native
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          APP_DIR="target/${{ matrix.target }}/release"
+          OUT="looplace-desktop-${{ matrix.target }}"
+          mkdir -p "dist/$OUT"
+          cp "$APP_DIR/${{ matrix.bin }}" "dist/$OUT/"
+          cd dist
+          zip -r "$OUT.zip" "$OUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: looplace-${{ matrix.target }}
+          path: dist/*.zip
