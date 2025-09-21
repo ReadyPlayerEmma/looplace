@@ -11,7 +11,7 @@ use super::qc::QualityFlags;
 #[cfg(target_arch = "wasm32")]
 const STORAGE_KEY: &str = "looplace_summaries";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SummaryRecord {
     pub id: String,
     pub task: String,
@@ -23,7 +23,7 @@ pub struct SummaryRecord {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ClientInfo {
     pub platform: String,
     pub tz: String,

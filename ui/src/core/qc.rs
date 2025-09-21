@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::platform::{platform_string, user_agent_string};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QualityFlags {
     pub visibility_blur_events: u32,
     pub focus_lost_events: u32,
@@ -35,7 +35,7 @@ impl QualityFlags {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DeviceSnapshot {
     pub platform: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
