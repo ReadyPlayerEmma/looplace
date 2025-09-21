@@ -154,7 +154,7 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 
   * Sparkline of median RT over time
   * Lapses count bar, false starts, slope
-  * 2-back d′ trend
+  * 2-back d′ trend and response mix
   * CSV/JSON export (client-side)
 * **Self-report (ui/)**: short mood/cog questionnaire (PHQ-2/GAD-2-style brevity, non-diagnostic), appended to summary.
 * **Offline queue (ui/)**: if `save_summary` fails, store in an outbox and retry.
@@ -191,7 +191,26 @@ Looplace is released under the [Mozilla Public License 2.0](./LICENSE).
 }
 ```
 
-> Identical shape for 2-back, with `metrics` replaced by d′/criterion fields.
+For a 2-back summary the `metrics` payload includes sensitivity and reaction distributions, e.g.
+
+```json
+{
+  "hits": 18,
+  "misses": 3,
+  "false_alarms": 4,
+  "correct_rejections": 35,
+  "hit_rate": 0.86,
+  "false_alarm_rate": 0.10,
+  "accuracy": 0.87,
+  "d_prime": 2.11,
+  "criterion": -0.14,
+  "median_hit_rt_ms": 484.0,
+  "p10_hit_rt_ms": 362.0,
+  "p90_hit_rt_ms": 612.0
+}
+```
+
+Both tasks share the same top-level record shape (`id`, `task`, `created_at`, `client`, `metrics`, `qc`, `notes`).
 
 ---
 
@@ -200,7 +219,7 @@ Looplace is released under the [Mozilla Public License 2.0](./LICENSE).
 * Use **`requestAnimationFrame`** and **`performance.now()`** for all scheduling; never `setTimeout` for stimulus onset.
 * Keep rendering lightweight during tests (no heavy DOM churn).
 * Debounce visibility events; if the tab loses focus, mark QC and consider pausing.
-* Prefer **keyboard events** to clicks on web; on mobile, support a large tap target.
+* Prefer **keyboard events** to clicks on web; on mobile, support a large tap target; both tasks honour space/enter as well as pointer taps.
 
 ---
 
@@ -208,7 +227,7 @@ Looplace is released under the [Mozilla Public License 2.0](./LICENSE).
 
 * WCAG AA colors from the brand palette; high-contrast test view.
 * Keyboard-only control is mandatory for web/desktop.
-* The PVT pad auto-focuses on start so space/enter work immediately, and the cancel control stays clickable above the stimulus area.
+* The test pads auto-focus on start so space/enter work immediately, provide immediate visual feedback on responses, and keep the cancel control clickable above the stimulus area.
 * Clear instructions and a visible **pause/abort** affordance; no dark patterns.
 * Plain-language summaries; no medical claims.
 

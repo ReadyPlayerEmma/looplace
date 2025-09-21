@@ -4,7 +4,7 @@
 - Looplace is a Dioxus-generated workspace; treat the existing module layout as canonical.
 - Logic lives in `ui/`; platform crates (`web/`, `desktop/`, `mobile/`) stay as thin launchers/glue.
 - Server functions in `api/` remain stubbed during the front-end demo (no real backend calls yet).
-- Current milestone to tackle next: **M3 — 2-back MVP** (engine, metrics, view, persistence).
+- Current milestone to tackle next: **M2 — Results UI** (lists, charts, export) now that the 2-back task is live.
 
 ## Quick start for new agents
 - **Local dev**
@@ -38,7 +38,7 @@
 
 ## Research + questions backlog
 - Record any Dioxus API changes or workarounds discovered mid-task.
-- Surface uncertainties about the upcoming 2-back implementation (stimulus schedule, metrics) early.
+- Surface uncertainties about wiring 2-back metrics into the Results experience (trend charts, exports) early.
 
 ## Parking lot
 - Add TODO clarifications or follow-ups here as they emerge.

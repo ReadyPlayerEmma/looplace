@@ -101,14 +101,15 @@
 
 ## M3 — 2-Back MVP (2-back only)
 
-* [ ] **Engine**: balanced letter stream with seed; record RTs
-* [ ] **Metrics**: hits, misses, false alarms, correct rejections; **d′** and criterion; accuracy%; RT stats
-* [ ] **Persist**: summary JSON to localStorage
-* [ ] **View**: instructions tooltip (+ 30–45 s practice block)
+* [x] **Engine**: balanced letter stream with seed; record RTs
+* [x] **Metrics**: hits, misses, false alarms, correct rejections; **d′** and criterion; accuracy%; RT stats
+* [x] **Persist**: summary JSON to localStorage
+* [x] **View**: instructions tooltip (+ 30–45 s practice block)
+* [x] **Feedback**: immediate visual acknowledgement for hits, misses, and false alarms
 
 **Acceptance (M3):**
 
-* Run a 2-back, see d′ on the result detail and in trend charts.
+* Run a 2-back, observe real-time feedback during the stream, and see the summary persisted with d′/criterion ready for downstream Results work.
 
 ---
 
