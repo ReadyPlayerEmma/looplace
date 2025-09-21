@@ -23,7 +23,7 @@
 - `Deploy (CF Pages)`: disabled for now; rename `.github/workflows/deploy-pages.yml.disabled` back to `.yml` if we resume web builds (requires `CF_API_TOKEN`/`CF_ACCOUNT_ID`).
 
 ## Working guidelines
-- Stick to existing architectural patterns; defer to `README.md`/`TODO.md` before inventing new abstractions.
+- Stick to existing architectural patterns; defer to `CONTRIBUTING.md` and `TODO.md` before inventing new abstractions.
 - UI code in `ui/` must stay platform-agnostic; call platform APIs only from the platform crates.
 - Timing-sensitive engines rely on `requestAnimationFrame`/`performance.now()` wrappers—preserve that contract.
 - When changing UX or visuals, ask the user to run a manual smoke test (PVT focus, bundling, etc.).
