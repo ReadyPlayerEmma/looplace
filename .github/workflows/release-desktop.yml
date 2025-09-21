@@ -14,10 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Start with Apple Silicon only; add Windows/x86 entries once validated.
+          # macOS bundle
           - os: macos-latest
             target: aarch64-apple-darwin
             bin: desktop
+          # Windows portable
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: desktop.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +38,7 @@ jobs:
         run: cargo build --release -p desktop --features desktop --target ${{ matrix.target }}
 
       - name: Package artifact (.app bundle)
+        if: contains(matrix.target, 'apple')
         shell: bash
         run: |
           set -euo pipefail
@@ -72,6 +77,24 @@ jobs:
           ditto -c -k --keepParent "$BUNDLE_PARENT_NAME" "$OUT.zip"
           mv "$BUNDLE_PARENT_NAME/${APP_NAME}.app" "$OUT/${APP_NAME}.app"
           rmdir "$BUNDLE_PARENT_NAME"
+
+      - name: Package artifact (Windows zip)
+        if: contains(matrix.target, 'windows')
+        shell: pwsh
+        run: |
+          $out = "looplace-desktop-${{ github.ref_name }}-${{ matrix.target }}"
+          $build = "target/${{ matrix.target }}/release/${{ matrix.bin }}"
+          if (-not (Test-Path $build)) {
+            Write-Error "Desktop binary not found at $build"
+          }
+          $dest = Join-Path "dist" $out
+          Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item $dest -ItemType Directory | Out-Null
+          Copy-Item $build (Join-Path $dest ${{ matrix.bin }})
+          if (Test-Path "desktop/assets") {
+            Copy-Item "desktop/assets" (Join-Path $dest "assets") -Recurse
+          }
+          Compress-Archive -Path $dest -DestinationPath (Join-Path "dist" "$out.zip") -Force
 
       - name: Upload artifacts to release
         if: startsWith(github.ref, 'refs/tags/')

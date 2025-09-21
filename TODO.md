@@ -204,4 +204,4 @@ Toggle via `?debug`: last RTs, RAF delta, visibility count, seed, platform info.
 * Avoid storing raw trial streams by default (privacy & portability).
 * When we add backend later, we’ll just wire `save_summary`/`get_summaries` server functions without touching the views.
 * Log papercuts (focus drift, layering bugs, etc.) while they’re fresh so they don’t stack up and sap the fun from the project.
-* CI currently exercises only the macOS Apple Silicon desktop build; re-enable Windows/x86 targets once the pipeline is stable.
+* CI now covers macOS Apple Silicon bundles and Windows x64 zips; expand to Linux or additional Windows packaging when needed.
