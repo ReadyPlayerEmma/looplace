@@ -63,8 +63,19 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
 
+          xattr -cr "$BUNDLE_ROOT" || true
+          codesign --force --deep --sign "-" "$BUNDLE_ROOT" || true
+
+          BUNDLE_PARENT_NAME="$OUT-macos"
+          BUNDLE_PARENT="dist/$BUNDLE_PARENT_NAME"
+          rm -rf "$BUNDLE_PARENT"
+          mkdir -p "$BUNDLE_PARENT"
+          mv "$BUNDLE_ROOT" "$BUNDLE_PARENT/"
+
           cd dist
-          zip -r "$OUT.zip" "$OUT"
+          ditto -c -k --keepParent "$BUNDLE_PARENT_NAME" "$OUT.zip"
+          mv "$BUNDLE_PARENT_NAME/${APP_NAME}.app" "$OUT/${APP_NAME}.app"
+          rmdir "$BUNDLE_PARENT_NAME"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

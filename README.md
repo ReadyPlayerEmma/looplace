@@ -240,6 +240,7 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 
 * The `.app` structure lives under `Contents/MacOS/Looplace` with `assets/` alongside the binary so runtime lookups succeed.
 * Update `desktop/macos/Info.plist` if you change bundle metadata (identifier, minimum macOS, icon etc.).
+* Builds receive an ad-hoc signature; macOS will still flag downloads from the internet. Use `xattr -cr Looplace.app` or right-click → Open the first time while we wait on a full Developer ID.
 * Code signing/notarisation is still manual—drop certificates once the developer account is reactivated.
 
 ---

@@ -5,6 +5,7 @@ APP_NAME="Looplace"
 PROFILE="${PROFILE:-release}"
 OUTPUT_DIR="target/bundle"
 INFO_PLIST="desktop/macos/Info.plist"
+SIGN_IDENTITY="${SIGN_IDENTITY:--}" # default to ad-hoc signing
 
 # Try to locate the compiled binary (prefer target/<triple>/PROFILE/desktop, fallback to target/PROFILE/desktop)
 BIN_PATH=""
@@ -48,12 +49,26 @@ if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
 fi
 
+
+if command -v xattr >/dev/null 2>&1; then
+  xattr -cr "$BUNDLE_ROOT" || true
+fi
+
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --deep --sign "$SIGN_IDENTITY" "$BUNDLE_ROOT" || true
+fi
+
 mkdir -p "$OUTPUT_DIR"
+BUNDLE_PARENT="${OUTPUT_DIR}/${APP_NAME}-macos"
+rm -rf "$BUNDLE_PARENT"
+mkdir -p "$BUNDLE_PARENT"
+mv "$BUNDLE_ROOT" "$BUNDLE_PARENT/"
+
 BUNDLE_ZIP="${OUTPUT_DIR}/${APP_NAME}-macos.zip"
 rm -f "$BUNDLE_ZIP"
-(
-  cd "$OUTPUT_DIR"
-  zip -r "$(basename "$BUNDLE_ZIP")" "$(basename "$BUNDLE_ROOT")"
-)
+ditto -c -k --keepParent "$BUNDLE_PARENT" "$BUNDLE_ZIP"
+
+mv "$BUNDLE_PARENT/${APP_NAME}.app" "$BUNDLE_ROOT"
+rm -rf "$BUNDLE_PARENT"
 
 echo "✅ Bundle created at ${BUNDLE_ZIP}"
