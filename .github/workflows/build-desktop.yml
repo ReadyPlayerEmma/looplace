@@ -37,16 +37,32 @@ jobs:
         env:
           RUSTFLAGS: -C target-cpu=native
 
-      - name: Package artifact
+      - name: Package artifact (.app bundle)
         shell: bash
         run: |
+          set -euo pipefail
+
           APP_DIR="target/${{ matrix.target }}/release"
           OUT="looplace-desktop-${{ matrix.target }}"
-          mkdir -p "dist/$OUT"
-          cp "$APP_DIR/${{ matrix.bin }}" "dist/$OUT/"
+          APP_NAME="Looplace"
+          BUNDLE_ROOT="dist/$OUT/${APP_NAME}.app"
+          MACOS_DIR="$BUNDLE_ROOT/Contents/MacOS"
+          RESOURCES_DIR="$BUNDLE_ROOT/Contents/Resources"
+
+          mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+          cp "$APP_DIR/${{ matrix.bin }}" "$MACOS_DIR/$APP_NAME"
+          chmod +x "$MACOS_DIR/$APP_NAME"
+
+          cp desktop/macos/Info.plist "$BUNDLE_ROOT/Contents/Info.plist"
+
           if [ -d desktop/assets ]; then
-            cp -R desktop/assets "dist/$OUT/"
+            cp -R desktop/assets "$MACOS_DIR/assets"
           fi
+
+          VERSION=$(grep -m1 '^version' desktop/Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
+
           cd dist
           zip -r "$OUT.zip" "$OUT"
 

@@ -228,12 +228,19 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 * **Lint/format**: `cargo clippy` / `cargo fmt`
 * **Feature flags**: prefer small, descriptive `cfg(feature = "...")` toggles for experimental tasks.
 * **Papercut sweep**: park recurring friction in the TODO log after each playtest so small regressions don’t pile up and dull the joy.
+* **Bundle macOS .app**: `cargo build --release -p desktop` then `./scripts/macos/bundle.sh` → `target/bundle/Looplace.app` (+ zipped archive).
 
 ## CI & deployment
 
 * `Build (Desktop)` runs on every push/PR and currently produces a release build for macOS Apple Silicon. Add more targets by expanding the workflow matrix when we are ready.
-* `Release (Desktop)` fires on tags matching `v*.*.*`, zips the macOS Apple Silicon build (plus the `desktop/assets` folder for styling), and attaches it to the corresponding GitHub release.
+* `Release (Desktop)` fires on tags matching `v*.*.*`, builds a signed-off `.app` bundle for macOS Apple Silicon (binary + assets + `Info.plist`), and attaches the zipped bundle to the release.
 * `Deploy (CF Pages)` is opt-in via the Actions UI (`workflow_dispatch`); uncomment the push trigger in `.github/workflows/deploy-pages.yml` once continuous deploys are desired and ensure `CF_API_TOKEN` and `CF_ACCOUNT_ID` secrets are set.
+
+### Desktop bundling notes
+
+* The `.app` structure lives under `Contents/MacOS/Looplace` with `assets/` alongside the binary so runtime lookups succeed.
+* Update `desktop/macos/Info.plist` if you change bundle metadata (identifier, minimum macOS, icon etc.).
+* Code signing/notarisation is still manual—drop certificates once the developer account is reactivated.
 
 ---
 
