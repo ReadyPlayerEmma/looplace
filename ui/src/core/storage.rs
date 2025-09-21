@@ -1,6 +1,6 @@
 //! Local persistence helpers for summaries and settings.
 
-use std::fmt;
+use std::{fmt, fs, io};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -74,7 +74,13 @@ pub fn load_summaries() -> Result<Vec<SummaryRecord>, StorageError> {
     {
         let storage = local_storage().ok_or(StorageError::LocalUnavailable)?;
         match storage.get_item(STORAGE_KEY) {
-            Ok(Some(raw)) => serde_json::from_str(&raw).map_err(StorageError::Serialization),
+            Ok(Some(raw)) => {
+                if raw.trim().is_empty() {
+                    Ok(Vec::new())
+                } else {
+                    serde_json::from_str(&raw).map_err(StorageError::Serialization)
+                }
+            }
             Ok(None) => Ok(Vec::new()),
             Err(_) => Err(StorageError::ReadFailed),
         }
@@ -82,7 +88,18 @@ pub fn load_summaries() -> Result<Vec<SummaryRecord>, StorageError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        Ok(MEMORY_DB.lock().expect("storage lock poisoned").clone())
+        let path = summaries_file_path()?;
+        match fs::read_to_string(&path) {
+            Ok(raw) => {
+                if raw.trim().is_empty() {
+                    Ok(Vec::new())
+                } else {
+                    serde_json::from_str(&raw).map_err(StorageError::Serialization)
+                }
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(_) => Err(StorageError::ReadFailed),
+        }
     }
 }
 
@@ -96,7 +113,7 @@ pub fn save_all(records: &[SummaryRecord]) -> Result<(), StorageError> {
     #[cfg(target_arch = "wasm32")]
     {
         let storage = local_storage().ok_or(StorageError::LocalUnavailable)?;
-        let serialized = serde_json::to_string(&records).map_err(StorageError::Serialization)?;
+        let serialized = serde_json::to_string(records).map_err(StorageError::Serialization)?;
         storage
             .set_item(STORAGE_KEY, &serialized)
             .map_err(|_| StorageError::WriteFailed)
@@ -104,9 +121,10 @@ pub fn save_all(records: &[SummaryRecord]) -> Result<(), StorageError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let mut guard = MEMORY_DB.lock().expect("storage lock poisoned");
-        *guard = records.to_vec();
-        Ok(())
+        let path = summaries_file_path()?;
+        let serialized =
+            serde_json::to_string_pretty(records).map_err(StorageError::Serialization)?;
+        fs::write(&path, serialized).map_err(|_| StorageError::WriteFailed)
     }
 }
 
@@ -129,15 +147,6 @@ fn local_storage() -> Option<web_sys::Storage> {
         .flatten()
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-use once_cell::sync::Lazy;
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::sync::Mutex;
-
-#[cfg(not(target_arch = "wasm32"))]
-static MEMORY_DB: Lazy<Mutex<Vec<SummaryRecord>>> = Lazy::new(|| Mutex::new(Vec::new()));
-
 pub fn clear_all() -> Result<(), StorageError> {
     #[cfg(target_arch = "wasm32")]
     {
@@ -149,7 +158,25 @@ pub fn clear_all() -> Result<(), StorageError> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        MEMORY_DB.lock().expect("storage lock poisoned").clear();
-        Ok(())
+        let path = summaries_file_path()?;
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(StorageError::WriteFailed),
+        }
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+const SUMMARY_FILE_NAME: &str = "summaries.json";
+
+#[cfg(not(target_arch = "wasm32"))]
+fn summaries_file_path() -> Result<std::path::PathBuf, StorageError> {
+    let dirs = directories::ProjectDirs::from("com", "Looplace", "Looplace")
+        .ok_or(StorageError::LocalUnavailable)?;
+    let data_dir = dirs.data_dir();
+
+    fs::create_dir_all(data_dir).map_err(|_| StorageError::WriteFailed)?;
+
+    Ok(data_dir.join(SUMMARY_FILE_NAME))
 }
