@@ -203,3 +203,4 @@ Toggle via `?debug`: last RTs, RAF delta, visibility count, seed, platform info.
 * Use pure functions for metrics to enable unit tests later.
 * Avoid storing raw trial streams by default (privacy & portability).
 * When we add backend later, we’ll just wire `save_summary`/`get_summaries` server functions without touching the views.
+* Log papercuts (focus drift, layering bugs, etc.) while they’re fresh so they don’t stack up and sap the fun from the project.

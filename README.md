@@ -202,6 +202,7 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 
 * WCAG AA colors from the brand palette; high-contrast test view.
 * Keyboard-only control is mandatory for web/desktop.
+* The PVT pad auto-focuses on start so space/enter work immediately, and the cancel control stays clickable above the stimulus area.
 * Clear instructions and a visible **pause/abort** affordance; no dark patterns.
 * Plain-language summaries; no medical claims.
 
@@ -226,6 +227,7 @@ When you add things like SQL, queues, mailers, **make them server-only** (avoid 
 * **Run mobile**: `cd mobile && dx serve --platform ios` (or `android`)
 * **Lint/format**: `cargo clippy` / `cargo fmt`
 * **Feature flags**: prefer small, descriptive `cfg(feature = "...")` toggles for experimental tasks.
+* **Papercut sweep**: park recurring friction in the TODO log after each playtest so small regressions don’t pile up and dull the joy.
 
 ---
 

@@ -266,17 +266,17 @@ pub fn PvtView() -> Element {
 
                     button {
                         class: "task-pvt__cancel",
-                        style: "position:absolute; top:1.5rem; left:1.5rem; background:transparent; color:#f7f7f7; border:1px solid rgba(247,247,247,0.4); padding:0.5rem 1rem; border-radius:999px; font-size:0.9rem;",
+                        style: "position:absolute; top:1.5rem; left:1.5rem; background:transparent; color:#f7f7f7; border:1px solid rgba(247,247,247,0.4); padding:0.5rem 1rem; border-radius:999px; font-size:0.9rem; z-index:2; pointer-events:auto;",
                         onclick: move |_| send_event(PvtEvent::Abort),
                         "Cancel"
                     }
 
-                    div {
+                    button {
+                        r#type: "button",
                         class: "task-pvt__hitbox",
-                        tabindex: 0,
-                        role: "button",
                         aria_label: "PVT reaction target",
-                        style: "position:absolute; inset:0; display:flex; align-items:center; justify-content:center;",
+                        autofocus: true,
+                        style: "position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:transparent; border:none; color:inherit; cursor:pointer; z-index:1;",
                         onfocusout: move |_| send_event(PvtEvent::FocusLost),
                         onclick: move |_| respond_now(),
                         onkeydown: move |evt| {
@@ -311,7 +311,6 @@ pub fn PvtView() -> Element {
                     class: "task-pvt__prelude",
                     style: "display:flex; flex-direction:column; gap:1rem;",
 
-                    h2 { "How it works" }
                     p {
                         "Wait until the millisecond counter appears in the centre, then tap or press space immediately."
                     }
