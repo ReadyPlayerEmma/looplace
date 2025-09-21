@@ -257,16 +257,10 @@ pub fn PvtView() -> Element {
 
     rsx! {
         article { class: "task task-pvt",
-            style: "display:flex; flex-direction:column; gap:2rem;",
-
             if is_running {
-                div {
-                    class: "task-pvt__canvas",
-                    style: "position:relative; min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#05060a; color:#f7f7f7; border-radius:16px;",
-
+                section { class: "task-card task-card--canvas task-pvt__canvas",
                     button {
-                        class: "task-pvt__cancel",
-                        style: "position:absolute; top:1.5rem; left:1.5rem; background:transparent; color:#f7f7f7; border:1px solid rgba(247,247,247,0.4); padding:0.5rem 1rem; border-radius:999px; font-size:0.9rem; z-index:2; pointer-events:auto;",
+                        class: "button button--ghost button--compact task-canvas__cancel",
                         onclick: move |_| send_event(PvtEvent::Abort),
                         "Cancel"
                     }
@@ -276,7 +270,6 @@ pub fn PvtView() -> Element {
                         class: "task-pvt__hitbox",
                         aria_label: "PVT reaction target",
                         autofocus: true,
-                        style: "position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:transparent; border:none; color:inherit; cursor:pointer; z-index:1;",
                         onfocusout: move |_| send_event(PvtEvent::FocusLost),
                         onclick: move |_| respond_now(),
                         onkeydown: move |evt| {
@@ -287,57 +280,45 @@ pub fn PvtView() -> Element {
                             }
                         },
 
-                        div {
-                            class: "task-pvt__indicator",
-                            style: "font-size:6rem; letter-spacing:0.2rem; font-family:'JetBrains Mono', 'Fira Mono', monospace;",
-                            {indicator_text()}
-                        }
+                        div { class: "task-pvt__indicator", {indicator_text()} }
                     }
 
-                    div {
-                        class: "task-pvt__message",
-                        style: "position:absolute; bottom:2rem; text-align:center; font-size:1rem; color:rgba(247,247,247,0.8);",
-                        "{guidance_text}"
-                    }
+                    div { class: "task-guidance task-guidance--overlay", "{guidance_text}" }
 
-                    div {
-                        class: "task-pvt__progress",
-                        style: "position:absolute; top:1.5rem; right:1.5rem; font-size:0.9rem; letter-spacing:0.1rem; color:rgba(247,247,247,0.7);",
-                        "{trial_progress}/{total_target}"
+                    div { class: "task-progress task-progress--overlay",
+                        span { "Progress" }
+                        span { class: "task-progress__value", "{trial_progress}/{total_target}" }
                     }
                 }
             } else {
-                section {
-                    class: "task-pvt__prelude",
-                    style: "display:flex; flex-direction:column; gap:1rem;",
-
-                    p {
-                        "Wait until the millisecond counter appears in the centre, then tap or press space immediately."
+                section { class: "task-card task-card--instructions task-pvt__prelude",
+                    details { class: "task-instructions",
+                        summary { "How the task works" }
+                        ul { class: "task-instructions__list",
+                            li { "Wait for the milliseconds counter to appear in the centre." }
+                            li { "Tap or press space as soon as you see it—speed and consistency both matter." }
+                            li { "Runs use 2–10 s jitter; false starts add delay, lapses ≥500 ms are flagged." }
+                            li { "Each session targets {total_target} valid reactions." }
+                        }
                     }
-                    p {
-                        "This implementation mirrors the canonical PVT-192 stimulus: 2–10 s uniform jitter, false starts add delay, lapses ≥500 ms are flagged."
-                    }
 
-                    div { style: "display:flex; gap:1rem; align-items:center;",
+                    div { class: "task-cta",
                         button {
                             r#type: "button",
-                            class: "task-pvt__start",
-                            style: "padding:0.75rem 1.75rem; font-size:1rem; border-radius:999px; border:none; background:#f05a7e; color:#fff; font-weight:600;",
+                            class: "button button--primary",
                             onclick: move |_| send_event(PvtEvent::Start),
                             "Start"
                         }
-                        span { style: "color:#666;", "{guidance_text}" }
+                        span { class: "task-guidance", "{guidance_text}" }
                     }
                 }
             }
 
             if !is_running {
                 if let Some(metrics) = latest_metrics {
-                    div { class: "task-pvt__metrics",
-                        style: "display:flex; flex-direction:column; gap:0.5rem;",
+                    section { class: "task-card task-metrics",
                         h3 { "Last session" }
-                        ul {
-                            style: "display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.5rem; list-style:none; padding:0;",
+                        ul { class: "metrics-grid",
                             li { "Median RT: {format::format_ms(metrics.median_rt_ms)}" }
                             li { "Mean RT: {format::format_ms(metrics.mean_rt_ms)}" }
                             li { "SD RT: {format::format_ms(metrics.sd_rt_ms)}" }
@@ -354,14 +335,13 @@ pub fn PvtView() -> Element {
                         }
                     }
                 } else {
-                    div { class: "task-pvt__metrics task-pvt__metrics--placeholder",
-                        style: "padding:1rem 1.5rem; border-radius:12px; background:rgba(255,255,255,0.04); color:#666;",
+                    section { class: "task-card task-metrics task-metrics--placeholder",
                         p { "Metrics will appear after the first completed run." }
                     }
                 }
 
                 if let Some(err) = error_message {
-                    div { class: "task-pvt__error", style: "color:#c21d4a; font-weight:600;", "⚠️ {err}" }
+                    div { class: "task-error", "⚠️ {err}" }
                 }
             }
         }

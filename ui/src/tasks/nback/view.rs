@@ -250,15 +250,11 @@ pub fn NBackView() -> Element {
 
     rsx! {
         article { class: "task task-nback",
-            style: "display:flex; flex-direction:column; gap:2rem;",
 
-            section { class: "task-nback__intro",
-                style: "display:flex; flex-direction:column; gap:0.5rem;",
-                details {
-                    class: "task-nback__instructions",
-                    style: "background:rgba(255,255,255,0.04); border-radius:12px; padding:1rem 1.25rem;",
+            section { class: "task-card task-card--instructions task-nback__intro",
+                details { class: "task-instructions",
                     summary { "How the task works" }
-                    ul { style: "padding-left:1.1rem; display:flex; flex-direction:column; gap:0.35rem;",
+                    ul { class: "task-instructions__list",
                         li { "Each letter displays for 0.5 s, followed by 2.5 s of blank interval." }
                         li { "Press space (or tap the pad) whenever the letter matches the one from two trials ago." }
                         li { "Practice block lasts ~35 seconds; main run is about 3 minutes." }
@@ -268,20 +264,16 @@ pub fn NBackView() -> Element {
             }
 
             if is_running {
-                section { class: "task-nback__canvas",
-                    style: "position:relative; min-height:55vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#10121a; color:#f7f7f7; border-radius:16px; gap:1.5rem; padding:2.5rem 1.5rem;",
+                section { class: "task-card task-card--canvas task-nback__canvas",
 
                     button {
-                        class: "task-nback__cancel",
-                        style: "position:absolute; top:1.5rem; left:1.5rem; background:transparent; color:#f7f7f7; border:1px solid rgba(247,247,247,0.4); padding:0.45rem 1.1rem; border-radius:999px; font-size:0.9rem;",
+                        class: "button button--ghost button--compact task-canvas__cancel",
                         onclick: move |_| send_event(NBackEvent::Abort),
                         "Cancel"
                     }
 
-                    div {
-                        class: "task-nback__mode",
-                        style: "position:absolute; top:1.5rem; right:1.5rem; text-transform:uppercase; letter-spacing:0.12rem; font-size:0.8rem; color:rgba(247,247,247,0.7);",
-                        "{mode_label}"
+                    if !mode_label.is_empty() {
+                        div { class: "task-mode-badge", "{mode_label}" }
                     }
 
                     button {
@@ -289,7 +281,6 @@ pub fn NBackView() -> Element {
                         class: "task-nback__hitbox",
                         aria_label: "Respond to current letter",
                         autofocus: true,
-                        style: "display:flex; align-items:center; justify-content:center; width:100%; height:100%; max-width:420px; aspect-ratio:1/1; background:rgba(247,247,247,0.04); border:1px solid rgba(247,247,247,0.2); border-radius:20px; color:inherit; cursor:pointer;",
                         onclick: move |_| respond_now(),
                         onkeydown: move |evt| {
                             let key = evt.key().to_string().to_lowercase();
@@ -300,81 +291,54 @@ pub fn NBackView() -> Element {
                         },
                         onfocusout: move |_| send_event(NBackEvent::FocusLost),
 
-                        div {
-                            class: "task-nback__glyph",
-                            style: "font-size:8rem; font-weight:700; letter-spacing:0.2rem; font-family:'Poppins', 'Inter', sans-serif; color:#f7f7f7;",
+                        div { class: "task-nback__glyph",
                             if let Some(letter) = current_letter {
                                 "{letter}"
                             } else {
-                                span { style: "font-size:1.1rem; letter-spacing:0.08rem; color:rgba(247,247,247,0.6);",
-                                    "Get ready"
-                                }
+                                span { "Get ready" }
                             }
                         }
 
                         if let Some(feedback) = feedback.clone() {
-                            div {
-                                class: "task-nback__feedback",
-                                style: format!(
-                                    "position:absolute; bottom:2rem; width:80%; max-width:320px; text-align:center; padding:0.6rem 1rem; border-radius:999px; font-weight:600; letter-spacing:0.04rem; background:{}; color:{}; box-shadow:0 8px 24px rgba(0,0,0,0.25);",
-                                    feedback.background(),
-                                    feedback.foreground()
-                                ),
-                                "{feedback.message}"
-                            }
+                            div { class: format!("task-feedback {}", feedback.css_class()), "{feedback.message}" }
                         }
                     }
 
-                    div {
-                        class: "task-nback__progress",
-                        style: "display:flex; flex-direction:column; align-items:center; gap:0.35rem; color:rgba(247,247,247,0.75);",
-                        span { style: "font-size:0.85rem; text-transform:uppercase; letter-spacing:0.18rem;", "Progress" }
-                        span { style: "font-size:1.1rem; font-weight:600; letter-spacing:0.12rem;", "{completed_trials}/{total_trials}" }
+                    div { class: "task-progress task-progress--overlay",
+                        span { "Progress" }
+                        span { class: "task-progress__value", "{completed_trials}/{total_trials}" }
                     }
                 }
             } else {
-                section { class: "task-nback__controls",
-                    style: "display:flex; flex-direction:column; gap:1.5rem;",
+                section { class: "task-card task-nback__controls",
 
-                    div {
-                        class: "task-nback__cta",
-                        style: "display:flex; flex-wrap:wrap; gap:0.75rem;",
+                    div { class: "task-cta",
                         button {
-                            class: "task-nback__start button--primary",
-                            style: "padding:0.75rem 1.5rem; border-radius:999px; border:none; background:#1f68ff; color:white; font-size:1rem; font-weight:600; cursor:pointer;",
+                            class: "button button--accent",
                             onclick: move |_| send_event(NBackEvent::StartPractice),
                             "Start practice"
                         }
                         button {
-                            class: "task-nback__start-main",
-                            style: "padding:0.75rem 1.5rem; border-radius:999px; border:none; background:#f05a7e; color:#fff; font-size:1rem; font-weight:600; cursor:pointer;",
+                            class: "button button--primary",
                             onclick: move |_| send_event(NBackEvent::StartMain),
                             "Start main session"
                         }
                     }
 
                     if let Some(metrics) = last_practice {
-                        section { class: "task-nback__practice-summary",
-                            style: "display:flex; flex-direction:column; gap:0.6rem; padding:1rem 1.25rem; border-radius:12px; background:rgba(0,0,0,0.035);",
-                            h3 { style: "margin:0; font-size:1rem; text-transform:uppercase; letter-spacing:0.12rem; color:#4a5da9;", "Practice recap" }
-                            p {
-                                style: "margin:0; color:#4b4f58;",
-                                "Hits {metrics.hits} / {metrics.target_trials} • False alarms {metrics.false_alarms} • Accuracy {(metrics.accuracy * 100.0).round()}%"
-                            }
+                        div { class: "task-card--subtle task-nback__practice-summary",
+                            h3 { "Practice recap" }
+                            p { "Hits {metrics.hits} / {metrics.target_trials} • False alarms {metrics.false_alarms} • Accuracy {(metrics.accuracy * 100.0).round()}%" }
                             if metrics.hits > 0 {
-                                p { style: "margin:0; color:#4b4f58;",
-                                    "Median hit RT {format::format_ms(metrics.median_hit_rt_ms)}"
-                                }
+                                p { "Median hit RT {format::format_ms(metrics.median_hit_rt_ms)}" }
                             }
                         }
                     }
 
                     if let Some(metrics) = latest_metrics {
-                        section { class: "task-nback__metrics",
-                            style: "display:flex; flex-direction:column; gap:0.75rem;",
-                            h3 { style: "margin:0; font-size:1.05rem;", "Last main session" }
-                            ul {
-                                style: "display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:0.45rem; list-style:none; padding:0; margin:0;",
+                        section { class: "task-card task-nback__metrics",
+                            h3 { "Last main session" }
+                            ul { class: "metrics-grid",
                                 li { "Hits: {metrics.hits} / {metrics.target_trials}" }
                                 li { "Misses: {metrics.misses}" }
                                 li { "False alarms: {metrics.false_alarms}" }
@@ -388,14 +352,13 @@ pub fn NBackView() -> Element {
                             }
                         }
                     } else {
-                        section { class: "task-nback__metrics task-nback__metrics--placeholder",
-                            style: "padding:1rem 1.25rem; border-radius:12px; background:rgba(0,0,0,0.035); color:#5f6575;",
-                            p { style: "margin:0;", "Metrics will appear after the first completed session." }
+                        section { class: "task-card task-nback__metrics task-metrics--placeholder",
+                            p { "Metrics will appear after the first completed session." }
                         }
                     }
 
                     if let Some(err) = error_message {
-                        div { class: "task-nback__error", style: "color:#c21d4a; font-weight:600;", "⚠️ {err}" }
+                        div { class: "task-error", "⚠️ {err}" }
                     }
                 }
             }
@@ -532,15 +495,11 @@ impl FeedbackState {
         }
     }
 
-    fn background(&self) -> &'static str {
+    fn css_class(&self) -> &'static str {
         match self.tone {
-            FeedbackTone::Positive => "rgba(52, 211, 153, 0.9)",
-            FeedbackTone::Negative => "rgba(248, 113, 113, 0.92)",
+            FeedbackTone::Positive => "task-feedback--positive",
+            FeedbackTone::Negative => "task-feedback--negative",
         }
-    }
-
-    fn foreground(&self) -> &'static str {
-        "#041217"
     }
 }
 
