@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+
+use dioxus::desktop::Config;
 use dioxus::prelude::*;
 
 use ui::components::Navbar;
@@ -18,9 +21,14 @@ enum Route {
 }
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const MAIN_CSS_INLINE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/main.css"));
 
 fn main() {
-    dioxus::launch(App);
+    let resource_dir = resolve_resource_dir();
+
+    LaunchBuilder::desktop()
+        .with_cfg(Config::new().with_resource_directory(resource_dir))
+        .launch(App);
 }
 
 #[component]
@@ -31,7 +39,27 @@ fn App() -> Element {
         // Global app resources
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
+        if cfg!(not(debug_assertions)) {
+            document::Style { dangerous_inner_html: MAIN_CSS_INLINE }
+        }
+
         Router::<Route> {}
+    }
+}
+
+fn resolve_resource_dir() -> PathBuf {
+    #[cfg(debug_assertions)]
+    {
+        // During `cargo run` / `dx serve` load directly from the crate.
+        PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/assets"))
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.join("assets")))
+            .unwrap_or_else(|| PathBuf::from("assets"))
     }
 }
 
