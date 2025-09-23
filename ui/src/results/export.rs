@@ -548,15 +548,22 @@ fn build_png_desktop(_records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
     const WIDTH: u32 = 1200;
     const HEIGHT: u32 = 720;
 
+    let overview = desktop_overview(_records);
+
     let mut image = ImageBuffer::from_pixel(WIDTH, HEIGHT, Rgba([15, 17, 22, 255]));
     apply_gradient(&mut image);
 
-    let lines = textual_summary(_records);
     let mut y = 120u32;
-    for line in lines {
-        draw_text_line(&mut image, 80, y, &line, Rgba([245, 247, 251, 255]));
-        y = y.saturating_add(36);
+    for line in &overview.lines {
+        draw_text_line(&mut image, 80, y, line, Rgba([245, 247, 251, 255]));
+        y = y.saturating_add(34);
     }
+
+    let trend_top = y.saturating_add(30);
+    draw_sparkline_png(&mut image, 80, trend_top, 960, 150, &overview.spark);
+
+    let bars_top = trend_top.saturating_add(200);
+    draw_dual_bars_png(&mut image, 80, bars_top, 960, 170, &overview.bars);
 
     let mut buffer = Vec::new();
     {
@@ -610,18 +617,40 @@ fn apply_gradient(image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn textual_summary(records: &[SummaryRecord]) -> Vec<String> {
+struct DesktopOverview {
+    lines: Vec<String>,
+    spark: Vec<SparkEntry>,
+    bars: Vec<BarSample>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct SparkEntry {
+    label: String,
+    value: f64,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+struct BarSample {
+    label: String,
+    lapses: u32,
+    false_starts: u32,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn desktop_overview(records: &[SummaryRecord]) -> DesktopOverview {
     let total = records.len();
     let mut clean_records: Vec<&SummaryRecord> = records
         .iter()
         .filter(|record| record_is_clean(record))
         .collect();
-
     let clean_total = clean_records.len();
 
     let mut pvt_medians = Vec::new();
     let mut nback_accuracy = Vec::new();
     let mut nback_dprime = Vec::new();
+
+    let mut spark_collect: Vec<(time::OffsetDateTime, SparkEntry)> = Vec::new();
+    let mut bar_collect: Vec<(time::OffsetDateTime, BarSample)> = Vec::new();
 
     for record in &clean_records {
         match record.task.as_str() {
@@ -629,6 +658,23 @@ fn textual_summary(records: &[SummaryRecord]) -> Vec<String> {
                 if let Some(metrics) = parse_pvt_metrics(record) {
                     if metrics.median_rt_ms.is_finite() {
                         pvt_medians.push(metrics.median_rt_ms);
+                        if let Some(ts) = parse_timestamp(record) {
+                            spark_collect.push((
+                                ts,
+                                SparkEntry {
+                                    label: format_date_badge(ts),
+                                    value: metrics.median_rt_ms,
+                                },
+                            ));
+                            bar_collect.push((
+                                ts,
+                                BarSample {
+                                    label: format_time_badge(ts),
+                                    lapses: metrics.lapses_ge_500ms,
+                                    false_starts: metrics.false_starts,
+                                },
+                            ));
+                        }
                     }
                 }
             }
@@ -645,6 +691,18 @@ fn textual_summary(records: &[SummaryRecord]) -> Vec<String> {
             _ => {}
         }
     }
+
+    spark_collect.sort_by(|a, b| a.0.cmp(&b.0));
+    let spark = spark_collect.into_iter().map(|(_, entry)| entry).collect();
+
+    bar_collect.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut bars: Vec<BarSample> = bar_collect
+        .into_iter()
+        .rev()
+        .take(8)
+        .map(|(_, entry)| entry)
+        .collect();
+    bars.reverse();
 
     let mut lines = Vec::new();
     lines.push("Looplace results".to_string());
@@ -693,7 +751,7 @@ fn textual_summary(records: &[SummaryRecord]) -> Vec<String> {
         }
     }
 
-    lines
+    DesktopOverview { lines, spark, bars }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -702,6 +760,302 @@ fn average_value(values: &[f64]) -> Option<f64> {
         None
     } else {
         Some(values.iter().copied().sum::<f64>() / values.len() as f64)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn draw_sparkline_png(
+    image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    origin_x: u32,
+    origin_y: u32,
+    width: u32,
+    height: u32,
+    points: &[SparkEntry],
+) {
+    let accent = image::Rgba([240, 90, 126, 255]);
+    let accent_soft = image::Rgba([240, 90, 126, 120]);
+    let muted = image::Rgba([200, 204, 214, 210]);
+
+    if points.len() < 2 {
+        draw_text_line(
+            image,
+            origin_x,
+            origin_y + height / 2,
+            "MORE PVT RUNS NEEDED",
+            muted,
+        );
+        return;
+    }
+
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+    for entry in points {
+        if entry.value.is_finite() {
+            min = min.min(entry.value);
+            max = max.max(entry.value);
+        }
+    }
+
+    if !min.is_finite() || !max.is_finite() {
+        draw_text_line(
+            image,
+            origin_x,
+            origin_y + height / 2,
+            "PVT DATA UNAVAILABLE",
+            muted,
+        );
+        return;
+    }
+
+    let span = (max - min).max(1.0);
+    let step = if points.len() > 1 {
+        width as f64 / (points.len() - 1) as f64
+    } else {
+        width as f64
+    };
+
+    let mut coords = Vec::new();
+    for (index, entry) in points.iter().enumerate() {
+        let x = origin_x as f64 + step * index as f64;
+        let norm = ((entry.value - min) / span).clamp(0.0, 1.0);
+        let y = origin_y as f64 + (height as f64 - norm * height as f64);
+        coords.push((x.round() as i32, y.round() as i32));
+    }
+
+    for win in coords.windows(2) {
+        if let [(x0, y0), (x1, y1)] = win {
+            draw_line(image, *x0, *y0, *x1, *y1, accent);
+        }
+    }
+
+    for (x, y) in &coords {
+        fill_rect(image, *x - 2, *y - 2, 5, 5, accent_soft);
+    }
+
+    let min_label = format!("MIN {} MS", min.round() as i64);
+    let max_label = format!("MAX {} MS", max.round() as i64);
+    draw_text_line(
+        image,
+        origin_x,
+        origin_y.saturating_sub(18),
+        &min_label,
+        muted,
+    );
+    let max_label_x = origin_x + width.saturating_sub(160);
+    draw_text_line(
+        image,
+        max_label_x,
+        origin_y.saturating_sub(18),
+        &max_label,
+        muted,
+    );
+
+    if let Some(first) = points.first() {
+        draw_text_line(image, origin_x, origin_y + height + 18, &first.label, muted);
+    }
+    if let Some(last) = points.last() {
+        let last_x = origin_x + width.saturating_sub(120);
+        draw_text_line(image, last_x, origin_y + height + 18, &last.label, muted);
+    }
+
+    draw_line(
+        image,
+        origin_x as i32,
+        (origin_y + height) as i32,
+        (origin_x + width) as i32,
+        (origin_y + height) as i32,
+        image::Rgba([60, 64, 74, 200]),
+    );
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn draw_dual_bars_png(
+    image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    origin_x: u32,
+    origin_y: u32,
+    width: u32,
+    height: u32,
+    samples: &[BarSample],
+) {
+    let lapses_color = image::Rgba([240, 90, 126, 240]);
+    let false_color = image::Rgba([240, 90, 126, 140]);
+    let muted = image::Rgba([200, 204, 214, 210]);
+
+    if samples.is_empty() {
+        draw_text_line(
+            image,
+            origin_x,
+            origin_y + height / 2,
+            "MORE PVT SESSIONS NEEDED",
+            muted,
+        );
+        return;
+    }
+
+    let max_value = samples
+        .iter()
+        .map(|sample| sample.lapses.max(sample.false_starts))
+        .max()
+        .unwrap_or(0);
+
+    if max_value == 0 {
+        draw_text_line(
+            image,
+            origin_x,
+            origin_y + height / 2,
+            "NO LAPSES RECORDED",
+            muted,
+        );
+        return;
+    }
+
+    let groups = samples.len() as f64;
+    let gap = 16.0_f64;
+    let available = width as f64 - gap * (groups - 1.0).max(0.0);
+    let group_width = (available / groups).max(12.0);
+    let bar_width = (group_width - 6.0) / 2.0;
+
+    for (index, sample) in samples.iter().enumerate() {
+        let base_x = origin_x as f64 + index as f64 * (group_width + gap);
+        let lapses_height = if sample.lapses == 0 {
+            0.0
+        } else {
+            (sample.lapses as f64 / max_value as f64) * height as f64
+        };
+        let false_height = if sample.false_starts == 0 {
+            0.0
+        } else {
+            (sample.false_starts as f64 / max_value as f64) * height as f64
+        };
+
+        let lapses_top = origin_y as f64 + height as f64 - lapses_height;
+        let false_top = origin_y as f64 + height as f64 - false_height;
+
+        fill_rect(
+            image,
+            base_x.round() as i32,
+            lapses_top.round() as i32,
+            bar_width.round().max(4.0) as u32,
+            lapses_height.round().max(1.0) as u32,
+            lapses_color,
+        );
+
+        fill_rect(
+            image,
+            (base_x + bar_width + 6.0).round() as i32,
+            false_top.round() as i32,
+            bar_width.round().max(4.0) as u32,
+            false_height.round().max(1.0) as u32,
+            false_color,
+        );
+
+        draw_text_line(
+            image,
+            base_x.round() as u32,
+            origin_y + height + 20,
+            &sample.label,
+            muted,
+        );
+    }
+
+    draw_text_line(
+        image,
+        origin_x,
+        origin_y.saturating_sub(20),
+        "LAPSES ≥500MS",
+        muted,
+    );
+    fill_rect(
+        image,
+        origin_x as i32,
+        origin_y as i32 - 30,
+        12,
+        12,
+        lapses_color,
+    );
+    draw_text_line(
+        image,
+        origin_x + 160,
+        origin_y.saturating_sub(20),
+        "FALSE STARTS",
+        muted,
+    );
+    fill_rect(
+        image,
+        origin_x as i32 + 150,
+        origin_y as i32 - 30,
+        12,
+        12,
+        false_color,
+    );
+
+    draw_line(
+        image,
+        origin_x as i32,
+        (origin_y + height) as i32,
+        (origin_x + width) as i32,
+        (origin_y + height) as i32,
+        image::Rgba([60, 64, 74, 200]),
+    );
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn fill_rect(
+    image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    color: image::Rgba<u8>,
+) {
+    for dy in 0..height {
+        for dx in 0..width {
+            set_pixel(image, x + dx as i32, y + dy as i32, color);
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn draw_line(
+    image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    mut x0: i32,
+    mut y0: i32,
+    x1: i32,
+    y1: i32,
+    color: image::Rgba<u8>,
+) {
+    let dx = (x1 - x0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let dy = -(y1 - y0).abs();
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+
+    loop {
+        set_pixel(image, x0, y0, color);
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = err * 2;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn set_pixel(
+    image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    x: i32,
+    y: i32,
+    color: image::Rgba<u8>,
+) {
+    if x >= 0 && y >= 0 && (x as u32) < image.width() && (y as u32) < image.height() {
+        image.put_pixel(x as u32, y as u32, color);
     }
 }
 
