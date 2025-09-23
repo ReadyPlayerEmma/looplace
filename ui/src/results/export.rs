@@ -1,9 +1,22 @@
 use dioxus::prelude::*;
+use std::fmt::Write as _;
 
 #[cfg(target_arch = "wasm32")]
 use crate::core::platform;
-use crate::core::storage::SummaryRecord;
-use crate::results::{parse_nback_metrics, parse_pvt_metrics, qc_summary};
+use crate::core::{format, storage::SummaryRecord};
+use crate::results::{
+    format_date_badge, format_time_badge, format_timestamp, parse_nback_metrics, parse_pvt_metrics,
+    parse_timestamp, qc_summary, record_is_clean,
+};
+use time::OffsetDateTime;
+
+const EXPORT_CANVAS_WIDTH: f64 = 1200.0;
+const EXPORT_CANVAS_HEIGHT: f64 = 720.0;
+const EXPORT_CONTENT_WIDTH: f64 = 960.0;
+const SPARK_CHART_WIDTH: f64 = 880.0;
+const SPARK_CHART_HEIGHT: f64 = 90.0;
+const BAR_CHART_WIDTH: f64 = 880.0;
+const BAR_CHART_HEIGHT: f64 = 70.0;
 
 #[derive(Clone, Debug, PartialEq)]
 enum ExportStatus {
@@ -545,11 +558,308 @@ fn build_png_desktop(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
 }
 
 fn svg_snapshot(records: &[SummaryRecord]) -> String {
-    let header = "Looplace results";
-    let sub = format!("{} runs saved locally", records.len());
-    format!(
-        "<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='720' viewBox='0 0 1200 720'>\n  <defs>\n    <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>\n      <stop offset='0%' stop-color='#151923'/>\n      <stop offset='100%' stop-color='#0f1116'/>\n    </linearGradient>\n  </defs>\n  <rect width='1200' height='720' fill='url(#bg)'/>\n  <text x='60' y='140' fill='#f5f7fb' font-family='Inter, \"Segoe UI\", sans-serif' font-size='56' font-weight='700'>{header}</text>\n  <text x='60' y='190' fill='rgba(245,247,251,0.72)' font-family='Inter, \"Segoe UI\", sans-serif' font-size='28'>{sub}</text>\n</svg>"
-    )
+    let overview = SnapshotOverview::build(records);
+
+    let mut subtitle = match overview.total_runs {
+        0 => "No runs saved yet".to_string(),
+        1 => "1 run saved locally".to_string(),
+        n => format!("{n} runs saved locally"),
+    };
+
+    if overview.total_runs > 0 {
+        if overview.clean_runs == overview.total_runs && overview.clean_runs > 0 {
+            subtitle.push_str(" · all clean");
+        } else if overview.clean_runs > 0 {
+            subtitle.push_str(&format!(" · {} clean", overview.clean_runs));
+        }
+    }
+
+    let latest_line = overview
+        .latest_label
+        .as_ref()
+        .map(|label| format!("Latest run {label}"));
+
+    let total_meta = if overview.clean_runs > 0 {
+        format!("{} clean", overview.clean_runs)
+    } else if overview.total_runs == 0 {
+        "Waiting on your first session".to_string()
+    } else {
+        "QC pending".to_string()
+    };
+
+    let pvt_value = format::format_ms(overview.avg_pvt.unwrap_or(f64::NAN));
+    let pvt_meta = if overview.clean_pvt > 0 {
+        format!("{} clean PVT sessions", overview.clean_pvt)
+    } else {
+        "Run a PVT to populate".to_string()
+    };
+
+    let accuracy_value = format::format_percent(overview.avg_nback_accuracy.unwrap_or(f64::NAN));
+    let accuracy_meta = if overview.clean_nback > 0 {
+        format!("{} clean 2-back sessions", overview.clean_nback)
+    } else {
+        "Complete a 2-back session".to_string()
+    };
+
+    let dprime_value = overview
+        .avg_nback_dprime
+        .filter(|value| value.is_finite())
+        .map(|value| format!("{value:.1}"))
+        .unwrap_or_else(|| "—".to_string());
+    let dprime_meta = if overview.clean_nback > 0 {
+        "Signal detection across sessions".to_string()
+    } else {
+        "Data pending".to_string()
+    };
+
+    let highlight_cards = [
+        ("Total runs", overview.total_runs.to_string(), total_meta),
+        ("Median PVT", pvt_value, pvt_meta),
+        ("2-back accuracy", accuracy_value, accuracy_meta),
+        ("2-back d′", dprime_value, dprime_meta),
+    ];
+
+    let highlight_width = 230.0;
+    let highlight_height = 112.0;
+    let highlight_gap = 20.0;
+    let highlight_y = 220.0;
+    let content_margin = 80.0;
+
+    let spark_y = 350.0;
+    let spark_bg_height = 200.0;
+    let spark_chart_offset_x = 32.0;
+    let spark_chart_offset_y = 86.0;
+
+    let bar_y = 560.0;
+    let bar_bg_height = 160.0;
+    let bar_chart_offset_x = 32.0;
+    let bar_chart_offset_y = 60.0;
+
+    let mut svg = String::new();
+
+    let _ = writeln!(
+        svg,
+        "<svg xmlns='http://www.w3.org/2000/svg' width='{:.0}' height='{:.0}' viewBox='0 0 {:.0} {:.0}' role='img'>",
+        EXPORT_CANVAS_WIDTH,
+        EXPORT_CANVAS_HEIGHT,
+        EXPORT_CANVAS_WIDTH,
+        EXPORT_CANVAS_HEIGHT
+    );
+    let _ = writeln!(svg, "  <defs>");
+    let _ = writeln!(
+        svg,
+        "    <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>"
+    );
+    let _ = writeln!(svg, "      <stop offset='0%' stop-color='#151923'/>");
+    let _ = writeln!(svg, "      <stop offset='100%' stop-color='#0f1116'/>");
+    let _ = writeln!(svg, "    </linearGradient>");
+    let _ = writeln!(svg, "  </defs>");
+    let _ = writeln!(
+        svg,
+        "  <rect width='{:.0}' height='{:.0}' fill='url(#bg)'/>",
+        EXPORT_CANVAS_WIDTH, EXPORT_CANVAS_HEIGHT
+    );
+
+    let _ = writeln!(
+        svg,
+        "  <text x='64' y='136' fill='#f5f7fb' font-family='Inter, Segoe UI, sans-serif' font-size='56' font-weight='700'>Looplace results</text>"
+    );
+    let _ = writeln!(
+        svg,
+        "  <text x='64' y='186' fill='rgba(245,247,251,0.72)' font-family='Inter, Segoe UI, sans-serif' font-size='26'>{}</text>",
+        escape_text(&subtitle)
+    );
+
+    if let Some(latest) = latest_line {
+        let _ = writeln!(
+            svg,
+            "  <text x='64' y='214' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='18'>{}</text>",
+            escape_text(&latest)
+        );
+    }
+
+    for (index, (label, value, meta)) in highlight_cards.iter().enumerate() {
+        let offset_x = content_margin + index as f64 * (highlight_width + highlight_gap);
+        let label_upper = label.to_ascii_uppercase();
+        let _ = writeln!(
+            svg,
+            "  <g transform='translate({offset_x:.0} {highlight_y:.0})'>",
+        );
+        let _ = writeln!(
+            svg,
+            "    <rect width='{highlight_width:.0}' height='{highlight_height:.0}' rx='20' fill='rgba(255,255,255,0.05)' stroke='rgba(255,255,255,0.08)'/>"
+        );
+        let _ = writeln!(
+            svg,
+            "    <text x='20' y='38' fill='rgba(245,247,251,0.66)' font-family='Inter, Segoe UI, sans-serif' font-size='16' letter-spacing='0.08em'>{}</text>",
+            escape_text(&label_upper)
+        );
+        let _ = writeln!(
+            svg,
+            "    <text x='20' y='74' fill='#f5f7fb' font-family='Inter, Segoe UI, sans-serif' font-size='36' font-weight='600'>{}</text>",
+            escape_text(value)
+        );
+        let _ = writeln!(
+            svg,
+            "    <text x='20' y='98' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='15'>{}</text>",
+            escape_text(meta)
+        );
+        let _ = writeln!(svg, "  </g>");
+    }
+
+    let _ = writeln!(
+        svg,
+        "  <g transform='translate({content_margin:.0} {spark_y:.0})'>"
+    );
+    let _ = writeln!(
+        svg,
+        "    <rect width='{EXPORT_CONTENT_WIDTH:.0}' height='{spark_bg_height:.0}' rx='24' fill='rgba(255,255,255,0.05)' stroke='rgba(255,255,255,0.08)'/>"
+    );
+    let _ = writeln!(
+        svg,
+        "    <text x='32' y='48' fill='rgba(245,247,251,0.9)' font-family='Inter, Segoe UI, sans-serif' font-size='24' font-weight='600'>PVT trend</text>"
+    );
+    let _ = writeln!(
+        svg,
+        "    <text x='32' y='76' fill='rgba(245,247,251,0.62)' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Median reaction time across clean runs</text>"
+    );
+
+    if let Some(spark) = &overview.spark {
+        let _ = writeln!(
+            svg,
+            "    <g transform='translate({spark_chart_offset_x:.0} {spark_chart_offset_y:.0})'>"
+        );
+        let _ = writeln!(
+            svg,
+            "      <path d='{}' fill='rgba(240,90,126,0.12)'/>",
+            spark.fill_path
+        );
+        let _ = writeln!(
+            svg,
+            "      <path d='{}' fill='none' stroke='#f05a7e' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/>",
+            spark.path
+        );
+        for (x, y) in &spark.markers {
+            let _ = writeln!(
+                svg,
+                "      <circle cx='{x:.2}' cy='{y:.2}' r='3.4' fill='#f05a7e'/>"
+            );
+        }
+        let _ = writeln!(
+            svg,
+            "      <line x1='0' y1='{SPARK_CHART_HEIGHT:.2}' x2='{SPARK_CHART_WIDTH:.2}' y2='{SPARK_CHART_HEIGHT:.2}' stroke='rgba(255,255,255,0.08)' stroke-width='1.4'/>"
+        );
+        let _ = writeln!(
+            svg,
+            "      <text x='0' y='-18' fill='rgba(245,247,251,0.62)' font-family='Inter, Segoe UI, sans-serif' font-size='13'>{}</text>",
+            escape_text(&spark.min_label)
+        );
+        let _ = writeln!(
+            svg,
+            "      <text x='{SPARK_CHART_WIDTH:.2}' y='-18' text-anchor='end' fill='rgba(245,247,251,0.62)' font-family='Inter, Segoe UI, sans-serif' font-size='13'>{}</text>",
+            escape_text(&spark.max_label)
+        );
+        if let Some(label) = &spark.start_label {
+            let _ = writeln!(
+                svg,
+                "      <text x='0' y='{:.2}' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='12'>{}</text>",
+                SPARK_CHART_HEIGHT + 24.0,
+                escape_text(label)
+            );
+        }
+        if let Some(label) = &spark.end_label {
+            let _ = writeln!(
+                svg,
+                "      <text x='{SPARK_CHART_WIDTH:.2}' y='{:.2}' text-anchor='end' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='12'>{}</text>",
+                SPARK_CHART_HEIGHT + 24.0,
+                escape_text(label)
+            );
+        }
+        let _ = writeln!(svg, "    </g>");
+    } else {
+        let _ = writeln!(
+            svg,
+            "    <text x='32' y='{:.0}' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Need more clean PVT runs to plot a trend.</text>",
+            spark_bg_height / 2.0 + 10.0
+        );
+    }
+    let _ = writeln!(svg, "  </g>");
+
+    let _ = writeln!(
+        svg,
+        "  <g transform='translate({content_margin:.0} {bar_y:.0})'>"
+    );
+    let _ = writeln!(
+        svg,
+        "    <rect width='{EXPORT_CONTENT_WIDTH:.0}' height='{bar_bg_height:.0}' rx='24' fill='rgba(255,255,255,0.05)' stroke='rgba(255,255,255,0.08)'/>"
+    );
+    let _ = writeln!(
+        svg,
+        "    <text x='32' y='44' fill='rgba(245,247,251,0.9)' font-family='Inter, Segoe UI, sans-serif' font-size='24' font-weight='600'>Lapses vs false starts</text>"
+    );
+    let _ = writeln!(
+        svg,
+        "    <text x='32' y='70' fill='rgba(245,247,251,0.62)' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Recent clean PVT sessions</text>"
+    );
+
+    let legend_origin = EXPORT_CONTENT_WIDTH - 240.0;
+    let _ = writeln!(svg, "    <g transform='translate({legend_origin:.0} 36)'>");
+    let _ = writeln!(
+        svg,
+        "      <rect x='0' y='0' width='14' height='14' rx='4' fill='rgba(240,90,126,0.9)'/>"
+    );
+    let _ = writeln!(
+        svg,
+        "      <text x='22' y='11' fill='rgba(245,247,251,0.78)' font-family='Inter, Segoe UI, sans-serif' font-size='14'>Lapses ≥500 ms</text>"
+    );
+    let _ = writeln!(
+        svg,
+        "      <rect x='132' y='0' width='14' height='14' rx='4' fill='rgba(240,90,126,0.32)'/>"
+    );
+    let _ = writeln!(
+        svg,
+        "      <text x='156' y='11' fill='rgba(245,247,251,0.78)' font-family='Inter, Segoe UI, sans-serif' font-size='14'>False starts</text>"
+    );
+    let _ = writeln!(svg, "    </g>");
+
+    if let Some(chart) = &overview.bars {
+        let _ = writeln!(
+            svg,
+            "    <g transform='translate({bar_chart_offset_x:.0} {bar_chart_offset_y:.0})'>"
+        );
+        let _ = writeln!(
+            svg,
+            "      <line x1='0' y1='{BAR_CHART_HEIGHT:.2}' x2='{BAR_CHART_WIDTH:.2}' y2='{BAR_CHART_HEIGHT:.2}' stroke='rgba(255,255,255,0.08)' stroke-width='1.4'/>"
+        );
+        for bar in &chart.bars {
+            let _ = writeln!(
+                svg,
+                "      <rect x='{:.2}' y='{:.2}' width='{:.2}' height='{:.2}' rx='4' fill='{}'/>",
+                bar.x, bar.y, bar.width, bar.height, bar.color
+            );
+        }
+        for label in &chart.labels {
+            let _ = writeln!(
+                svg,
+                "      <text x='{:.2}' y='{:.2}' text-anchor='middle' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='12'>{}</text>",
+                label.x,
+                BAR_CHART_HEIGHT + 24.0,
+                escape_text(&label.text)
+            );
+        }
+        let _ = writeln!(svg, "    </g>");
+    } else {
+        let _ = writeln!(
+            svg,
+            "    <text x='32' y='{:.0}' fill='rgba(245,247,251,0.55)' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Complete clean PVT runs to compare lapses and false starts.</text>",
+            bar_bg_height / 2.0 + 10.0
+        );
+    }
+
+    let _ = writeln!(svg, "  </g>");
+    let _ = writeln!(svg, "</svg>");
+
+    svg
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -580,4 +890,312 @@ fn svg_to_png(svg: &str, width: u32, height: u32) -> Result<Vec<u8>, String> {
         .map_err(|err| err.to_string())?;
 
     Ok(out)
+}
+
+struct SnapshotOverview {
+    total_runs: usize,
+    clean_runs: usize,
+    clean_pvt: usize,
+    clean_nback: usize,
+    avg_pvt: Option<f64>,
+    avg_nback_accuracy: Option<f64>,
+    avg_nback_dprime: Option<f64>,
+    latest_label: Option<String>,
+    spark: Option<SparklineData>,
+    bars: Option<BarChartData>,
+}
+
+impl SnapshotOverview {
+    fn build(records: &[SummaryRecord]) -> Self {
+        let total_runs = records.len();
+        let latest_label = records
+            .iter()
+            .max_by(|a, b| a.created_at.cmp(&b.created_at))
+            .map(|record| format_timestamp(record));
+
+        let mut clean_refs: Vec<&SummaryRecord> = records
+            .iter()
+            .filter(|record| record_is_clean(record))
+            .collect();
+        let clean_runs = clean_refs.len();
+
+        if clean_refs.is_empty() {
+            clean_refs = records.iter().collect();
+        }
+
+        let mut pvt_medians = Vec::new();
+        let mut nback_accuracy = Vec::new();
+        let mut nback_dprime = Vec::new();
+        let mut clean_pvt = 0usize;
+        let mut clean_nback = 0usize;
+
+        let mut spark_collect: Vec<(OffsetDateTime, SparkPoint)> = Vec::new();
+        let mut bar_collect: Vec<(OffsetDateTime, BarSample)> = Vec::new();
+
+        for record in &clean_refs {
+            if let Some(ts) = parse_timestamp(record) {
+                match record.task.as_str() {
+                    "pvt" => {
+                        if let Some(metrics) = parse_pvt_metrics(record) {
+                            if metrics.median_rt_ms.is_finite() {
+                                pvt_medians.push(metrics.median_rt_ms);
+                                spark_collect.push((
+                                    ts,
+                                    SparkPoint {
+                                        label: format_date_badge(ts),
+                                        value: metrics.median_rt_ms,
+                                    },
+                                ));
+                                bar_collect.push((
+                                    ts,
+                                    BarSample {
+                                        label: format_time_badge(ts),
+                                        lapses: metrics.lapses_ge_500ms,
+                                        false_starts: metrics.false_starts,
+                                    },
+                                ));
+                                clean_pvt += 1;
+                            }
+                        }
+                    }
+                    "nback2" => {
+                        if let Some(metrics) = parse_nback_metrics(record) {
+                            if metrics.accuracy.is_finite() {
+                                nback_accuracy.push(metrics.accuracy);
+                            }
+                            if metrics.d_prime.is_finite() {
+                                nback_dprime.push(metrics.d_prime);
+                            }
+                            clean_nback += 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        spark_collect.sort_by(|a, b| a.0.cmp(&b.0));
+        let spark_points: Vec<SparkPoint> =
+            spark_collect.into_iter().map(|(_, point)| point).collect();
+        let spark = build_sparkline_chart(&spark_points);
+
+        bar_collect.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut bar_samples: Vec<BarSample> =
+            bar_collect.into_iter().map(|(_, sample)| sample).collect();
+        if bar_samples.len() > 8 {
+            bar_samples = bar_samples.into_iter().rev().take(8).collect();
+            bar_samples.reverse();
+        }
+        let bars = build_bar_chart(&bar_samples);
+
+        let avg_pvt = average_value(&pvt_medians);
+        let avg_nback_accuracy = average_value(&nback_accuracy);
+        let avg_nback_dprime = average_value(&nback_dprime);
+
+        SnapshotOverview {
+            total_runs,
+            clean_runs,
+            clean_pvt,
+            clean_nback,
+            avg_pvt,
+            avg_nback_accuracy,
+            avg_nback_dprime,
+            latest_label,
+            spark,
+            bars,
+        }
+    }
+}
+
+struct SparklineData {
+    path: String,
+    fill_path: String,
+    markers: Vec<(f64, f64)>,
+    min_label: String,
+    max_label: String,
+    start_label: Option<String>,
+    end_label: Option<String>,
+}
+
+struct BarChartData {
+    bars: Vec<BarRect>,
+    labels: Vec<BarLabel>,
+}
+
+struct BarRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    color: &'static str,
+}
+
+struct BarLabel {
+    x: f64,
+    text: String,
+}
+
+struct SparkPoint {
+    label: String,
+    value: f64,
+}
+
+struct BarSample {
+    label: String,
+    lapses: u32,
+    false_starts: u32,
+}
+
+fn build_sparkline_chart(points: &[SparkPoint]) -> Option<SparklineData> {
+    if points.len() < 2 {
+        return None;
+    }
+
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+
+    for point in points {
+        if point.value.is_finite() {
+            min = min.min(point.value);
+            max = max.max(point.value);
+        }
+    }
+
+    if !min.is_finite() || !max.is_finite() {
+        return None;
+    }
+
+    let span = (max - min).max(1.0);
+    let step = if points.len() > 1 {
+        SPARK_CHART_WIDTH / (points.len() - 1) as f64
+    } else {
+        SPARK_CHART_WIDTH
+    };
+
+    let mut path = String::new();
+    let mut fill_path = String::new();
+    let mut markers = Vec::new();
+
+    for (index, point) in points.iter().enumerate() {
+        let x = step * index as f64;
+        let norm = ((point.value - min) / span).clamp(0.0, 1.0);
+        let y = SPARK_CHART_HEIGHT - norm * SPARK_CHART_HEIGHT;
+
+        if index == 0 {
+            let _ = write!(path, "M{:.2} {:.2}", x, y);
+            let _ = write!(
+                fill_path,
+                "M{:.2} {:.2} L{:.2} {:.2}",
+                x, SPARK_CHART_HEIGHT, x, y
+            );
+        } else {
+            let _ = write!(path, " L{:.2} {:.2}", x, y);
+            let _ = write!(fill_path, " L{:.2} {:.2}", x, y);
+        }
+
+        markers.push((x, y));
+    }
+
+    if let Some((last_x, _)) = markers.last() {
+        let _ = write!(fill_path, " L{:.2} {:.2} Z", last_x, SPARK_CHART_HEIGHT);
+    }
+
+    let min_label = format!("MIN {} ms", min.round() as i64);
+    let max_label = format!("MAX {} ms", max.round() as i64);
+    let start_label = points.first().map(|point| point.label.clone());
+    let end_label = points.last().map(|point| point.label.clone());
+
+    Some(SparklineData {
+        path,
+        fill_path,
+        markers,
+        min_label,
+        max_label,
+        start_label,
+        end_label,
+    })
+}
+
+fn build_bar_chart(samples: &[BarSample]) -> Option<BarChartData> {
+    if samples.is_empty() {
+        return None;
+    }
+
+    let max_value = samples
+        .iter()
+        .map(|sample| sample.lapses.max(sample.false_starts))
+        .max()
+        .unwrap_or(0)
+        .max(1) as f64;
+
+    let bar_width = 14.0;
+    let pair_width = bar_width * 2.0 + 8.0;
+    let margin = 20.0;
+    let groups = samples.len() as f64;
+    let available = (BAR_CHART_WIDTH - margin * 2.0) - pair_width * groups;
+    let gap = if groups > 1.0 {
+        (available.max(0.0)) / (groups - 1.0)
+    } else {
+        0.0
+    };
+
+    let mut bars = Vec::new();
+    let mut labels = Vec::new();
+
+    for (index, sample) in samples.iter().enumerate() {
+        let group_x = margin + index as f64 * (pair_width + gap);
+
+        let lapses_height = if sample.lapses == 0 {
+            0.0
+        } else {
+            (sample.lapses as f64 / max_value) * BAR_CHART_HEIGHT
+        };
+        let false_height = if sample.false_starts == 0 {
+            0.0
+        } else {
+            (sample.false_starts as f64 / max_value) * BAR_CHART_HEIGHT
+        };
+
+        let lapses_y = BAR_CHART_HEIGHT - lapses_height;
+        let false_y = BAR_CHART_HEIGHT - false_height;
+
+        bars.push(BarRect {
+            x: group_x,
+            y: lapses_y,
+            width: bar_width,
+            height: lapses_height,
+            color: "rgba(240,90,126,0.9)",
+        });
+
+        bars.push(BarRect {
+            x: group_x + bar_width + 8.0,
+            y: false_y,
+            width: bar_width,
+            height: false_height,
+            color: "rgba(240,90,126,0.32)",
+        });
+
+        labels.push(BarLabel {
+            x: group_x + (pair_width / 2.0),
+            text: sample.label.clone(),
+        });
+    }
+
+    Some(BarChartData { bars, labels })
+}
+
+fn average_value(values: &[f64]) -> Option<f64> {
+    if values.is_empty() {
+        None
+    } else {
+        Some(values.iter().copied().sum::<f64>() / values.len() as f64)
+    }
+}
+
+fn escape_text(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
