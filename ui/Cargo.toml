@@ -55,4 +55,7 @@ tokio = { version = "1", features = ["time", "rt"] }
 directories = "5"
 png = "0.17"
 arboard = "3"
-image = { version = "0.25", default-features = false, features = ["png"] }
+usvg = { version = "0.43", default-features = false, features = ["text"] }
+resvg = "0.43"
+tiny-skia = "0.11"
+fontdb = "0.15"
