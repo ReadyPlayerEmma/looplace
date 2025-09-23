@@ -17,12 +17,12 @@ jobs:
           # macOS bundle
           - os: macos-latest
             target: aarch64-apple-darwin
-            bin: desktop
+            bin: looplace-desktop
             archive: zip
           # Windows portable zip
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            bin: desktop.exe
+            bin: looplace-desktop.exe
             archive: zip
 
     steps:
@@ -37,7 +37,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build (release)
-        run: cargo build --release -p desktop --features desktop --target ${{ matrix.target }}
+        run: cargo build --release -p looplace-desktop --features desktop --target ${{ matrix.target }}
         env:
           RUSTFLAGS: -C target-cpu=native
 
