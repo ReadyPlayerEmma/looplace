@@ -626,14 +626,14 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     let content_margin = 80.0;
 
     let spark_y = 350.0;
-    let spark_bg_height = 200.0;
+    let spark_bg_height = 220.0;
     let spark_chart_offset_x = 32.0;
-    let spark_chart_offset_y = 86.0;
+    let spark_chart_offset_y = 118.0;
 
     let bar_y = 560.0;
     let bar_bg_height = 160.0;
     let bar_chart_offset_x = 32.0;
-    let bar_chart_offset_y = 60.0;
+    let bar_chart_offset_y = 88.0;
 
     let mut svg = String::new();
 
