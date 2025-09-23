@@ -32,6 +32,10 @@ Our goal is to keep the tools approachable while layering in richer analysis: jo
 
 ## Quick start
 
+End users who just want to try Looplace can download the latest builds from the [GitHub Releases page](https://github.com/ReadyPlayerEmma/looplace/releases).
+
+Developers can spin up the desktop experience locally with:
+
 ```bash
 cargo install dioxus-cli
 cd desktop

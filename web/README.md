@@ -1,6 +1,6 @@
 # Development
 
-The web crate defines the entrypoint for the web app along with any assets, components and dependencies that are specific to web builds. The web crate starts out something like this:
+The `looplace-web` crate (located in `web/`) defines the entrypoint for the web app along with any assets, components, and dependencies that are specific to web builds. The crate starts out something like this:
 
 ```
 web/
@@ -26,5 +26,5 @@ You should make all web specific dependencies optional and only enabled in the `
 You can start your web app with the following command:
 
 ```bash
-dx serve
+dx serve --platform web
 ```

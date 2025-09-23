@@ -1,9 +1,13 @@
 [package]
-name = "ui"
-version = "0.1.5"
+name = "looplace-ui"
+version = "0.1.6"
 edition = "2021"
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "ui"
 
 [dependencies]
 dioxus = { workspace = true }

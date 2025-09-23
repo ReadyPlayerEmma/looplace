@@ -1,9 +1,10 @@
 [package]
-name = "web"
-version = "0.1.5"
+name = "looplace-web"
+version = "0.1.6"
 edition = "2021"
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }

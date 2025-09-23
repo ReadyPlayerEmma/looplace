@@ -1,6 +1,6 @@
 # Development
 
-The desktop crate defines the entrypoint for the desktop app along with any assets, components and dependencies that are specific to desktop builds. The desktop crate starts out something like this:
+The `looplace-desktop` crate (located in `desktop/`) defines the entrypoint for the desktop app along with any assets, components, and dependencies that are specific to desktop builds. The crate starts out something like this:
 
 ```
 desktop/
@@ -26,5 +26,5 @@ You should make all desktop specific dependencies optional and only enabled in t
 You can start your desktop app with the following command:
 
 ```bash
-dx serve
+dx serve --platform desktop
 ```

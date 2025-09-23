@@ -1,9 +1,13 @@
 [package]
-name = "api"
-version = "0.1.5"
+name = "looplace-api"
+version = "0.1.6"
 edition = "2021"
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "api"
 
 [dependencies]
 dioxus = { workspace = true, features = ["fullstack"] }

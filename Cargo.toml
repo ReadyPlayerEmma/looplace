@@ -11,13 +11,14 @@ members = [
 [workspace.package]
 authors = ["ReadyPlayerEmma <emma@readyplayeremma.com>"]
 license = "MPL-2.0"
+repository = "https://github.com/ReadyPlayerEmma/looplace"
 
 [workspace.dependencies]
 dioxus = { version = "0.6.3" }
 
 # workspace
-ui = { path = "ui" }
-api = { path = "api" }
+ui = { path = "ui", package = "looplace-ui" }
+api = { path = "api", package = "looplace-api" }
 
 [profile]
 

@@ -1,6 +1,6 @@
 # Development
 
-The mobile crate defines the entrypoint for the mobile app along with any assets, components and dependencies that are specific to mobile builds. The mobile crate starts out something like this:
+The `looplace-mobile` crate (located in `mobile/`) defines the entrypoint for the mobile app along with any assets, components, and dependencies that are specific to mobile builds. The crate starts out something like this:
 
 ```
 mobile/

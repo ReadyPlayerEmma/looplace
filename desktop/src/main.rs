@@ -1,7 +1,9 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+#[cfg(feature = "desktop")]
 use std::path::PathBuf;
 
+#[cfg(feature = "desktop")]
 use dioxus::desktop::Config;
 use dioxus::prelude::*;
 
@@ -25,12 +27,18 @@ enum Route {
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const MAIN_CSS_INLINE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/main.css"));
 
+#[cfg(feature = "desktop")]
 fn main() {
     let resource_dir = resolve_resource_dir();
 
     LaunchBuilder::desktop()
         .with_cfg(Config::new().with_resource_directory(resource_dir))
         .launch(App);
+}
+
+#[cfg(all(feature = "server", not(feature = "desktop")))]
+fn main() {
+    LaunchBuilder::server().launch(App);
 }
 
 #[component]
@@ -49,6 +57,7 @@ fn App() -> Element {
     }
 }
 
+#[cfg(feature = "desktop")]
 fn resolve_resource_dir() -> PathBuf {
     #[cfg(debug_assertions)]
     {
