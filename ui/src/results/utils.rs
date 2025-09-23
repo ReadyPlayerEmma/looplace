@@ -8,7 +8,7 @@ pub(crate) fn format_timestamp(record: &SummaryRecord) -> String {
     let (date, time_segment) = iso.split_once('T').unwrap_or((iso, ""));
 
     let primary_time = time_segment
-        .split(|c| matches!(c, '.' | 'Z' | '+'))
+        .split(['.', 'Z', '+'])
         .next()
         .unwrap_or(time_segment);
 
