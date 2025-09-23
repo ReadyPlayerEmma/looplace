@@ -29,6 +29,8 @@ dx serve --platform ios                  # iOS simulator
 dx serve --platform android              # Android — extra tooling required
 ```
 
+> The workspace crates are published as `looplace-*` packages. When invoking `dx` from the workspace root, pass `--package looplace-desktop` (or `looplace-web`) to pick the right binary; running commands from inside each crate directory works without extra flags.
+
 All platforms pull UI and logic from the shared `ui/` crate, so changes propagate everywhere.
 
 ---

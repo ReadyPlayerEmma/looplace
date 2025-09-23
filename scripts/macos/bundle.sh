@@ -7,18 +7,19 @@ OUTPUT_DIR="target/bundle"
 INFO_PLIST="desktop/macos/Info.plist"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}" # default to ad-hoc signing
 
-# Try to locate the compiled binary (prefer target/<triple>/PROFILE/desktop, fallback to target/PROFILE/desktop)
+# Try to locate the compiled binary (prefer target/<triple>/PROFILE/<bin>, fallback to target/PROFILE/<bin>)
+BIN_NAME="looplace-desktop"
 BIN_PATH=""
-if [[ -n "${RUST_TARGET:-}" ]] && [[ -f "target/${RUST_TARGET}/${PROFILE}/desktop" ]]; then
-  BIN_PATH="target/${RUST_TARGET}/${PROFILE}/desktop"
+if [[ -n "${RUST_TARGET:-}" ]] && [[ -f "target/${RUST_TARGET}/${PROFILE}/${BIN_NAME}" ]]; then
+  BIN_PATH="target/${RUST_TARGET}/${PROFILE}/${BIN_NAME}"
 fi
 
 if [[ -z "$BIN_PATH" ]]; then
-  BIN_PATH=$(find "target" -maxdepth 3 -path "*/${PROFILE}/desktop" -type f | head -n1 || true)
+  BIN_PATH=$(find "target" -maxdepth 3 -path "*/${PROFILE}/${BIN_NAME}" -type f | head -n1 || true)
 fi
 
 if [[ -z "$BIN_PATH" ]]; then
-  echo "❌ Could not find compiled desktop binary. Run 'cargo build --release -p desktop' first." >&2
+  echo "❌ Could not find compiled desktop binary. Run 'cargo build --release -p looplace-desktop' first." >&2
   exit 1
 fi
 

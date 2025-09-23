@@ -11,8 +11,8 @@
   - Web: `cd web && dx serve --platform web --open`
   - Desktop: `cd desktop && dx serve --platform desktop` (desktop feature enabled by default)
 - **Release builds**
-  - `cargo build --release -p desktop --features desktop --target aarch64-apple-darwin`
-  - `cargo build --release -p desktop --target x86_64-pc-windows-msvc`
+  - `cargo build --release -p looplace-desktop --features desktop --target aarch64-apple-darwin`
+  - `cargo build --release -p looplace-desktop --target x86_64-pc-windows-msvc`
 - **Bundling**
   - macOS `.app`: `./scripts/macos/bundle.sh` (drops `target/bundle/Looplace.app` + zip, ad-hoc signed)
   - Windows portable zip generated automatically in CI (`Looplace.exe` + `assets/`)
