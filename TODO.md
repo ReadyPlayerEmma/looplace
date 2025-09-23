@@ -9,6 +9,14 @@
 
 ---
 
+## Current focus
+
+- Finalise the M2 Results milestone: keep polishing charts/exports while we prepare filters + histogram (P1).
+- Unify exports behind a shared SVG renderer so desktop/web PNGs match pixel-for-pixel.
+- Keep accessibility polish (M4 goals) in view once results work lands.
+
+---
+
 ## M0 — Workspace alignment (match dx structure)
 
 **Goal:** Keep the dx template shape while centralizing logic in `ui/`.
@@ -92,6 +100,7 @@
   * JSON: copy to clipboard + download
   * CSV: selected fields (task, when, median, lapses, false starts, slope, qc)
   * PNG: render results panel to image (DOM→canvas→data URL)
+  * [ ] Desktop: switch PNG export to shared SVG rasterizer (resvg/tiny-skia)
 
 **Acceptance (M2):**
 
@@ -152,12 +161,12 @@ Key: `looplace_summaries` → JSON array
 
 **web/**
 
-* [ ] `src/main.rs` — own `Route` enum → import `ui::views::*`
+* [x] `src/main.rs` — own `Route` enum → import `ui::views::*`
 * [ ] `assets/*` — keep; add favicon/theme as needed
 
 **desktop/**
 
-* [ ] `src/main.rs` — own `Route` enum → import `ui::views::*`
+* [x] `src/main.rs` — own `Route` enum → import `ui::views::*`
 * [ ] `assets/*` — keep; add window css if needed
 
 **api/**
