@@ -496,6 +496,14 @@ details[open] > summary::after {
     text-transform: uppercase;
 }
 
+.results-card__meta--success {
+    color: var(--color-success);
+}
+
+.results-card__meta--error {
+    color: var(--color-danger);
+}
+
 .results-card__placeholder {
     margin: 0;
     color: var(--color-text-muted);
@@ -705,6 +713,93 @@ details[open] > summary::after {
     gap: 1rem;
 }
 
+.results-charts__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    align-items: stretch;
+}
+
+.results-chart {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1rem 1.25rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.results-chart__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.results-chart__title {
+    font-size: 0.95rem;
+    letter-spacing: 0.08rem;
+    text-transform: uppercase;
+    color: rgba(245, 247, 251, 0.78);
+}
+
+.results-chart__meta {
+    font-size: 0.76rem;
+    color: var(--color-text-muted);
+    letter-spacing: 0.06rem;
+    text-transform: uppercase;
+}
+
+.results-chart__svg {
+    width: 100%;
+    height: 140px;
+}
+
+.results-chart__axis {
+    font-size: 0.72rem;
+    fill: rgba(245, 247, 251, 0.6);
+    letter-spacing: 0.08rem;
+    text-transform: uppercase;
+}
+
+.results-chart__footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.results-chart__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+}
+
+.results-chart__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.results-chart__legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.results-chart__legend-swatch--lapses {
+    background: rgba(240, 90, 126, 0.95);
+}
+
+.results-chart__legend-swatch--false {
+    background: rgba(240, 90, 126, 0.35);
+}
+
 .results-highlight {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -829,5 +924,14 @@ details[open] > summary::after {
 
     .results-highlights {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .results-chart__svg {
+        height: 130px;
+    }
+
+    .results-chart__footer {
+        flex-direction: column;
+        gap: 0.4rem;
     }
 }

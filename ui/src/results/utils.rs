@@ -2,6 +2,7 @@ use crate::{
     core::storage::SummaryRecord,
     tasks::{nback::NBackMetrics, pvt::PvtMetrics},
 };
+use time::{format_description::well_known::Rfc3339, macros::format_description, OffsetDateTime};
 
 pub(crate) fn format_timestamp(record: &SummaryRecord) -> String {
     let iso = record.created_at.as_str();
@@ -26,6 +27,22 @@ pub(crate) fn format_timestamp(record: &SummaryRecord) -> String {
     }
 
     label
+}
+
+pub(crate) fn parse_timestamp(record: &SummaryRecord) -> Option<OffsetDateTime> {
+    OffsetDateTime::parse(record.created_at.as_str(), &Rfc3339).ok()
+}
+
+pub(crate) fn format_date_badge(date: OffsetDateTime) -> String {
+    date.format(&format_description!(
+        "[month repr:short] [day padding:none]"
+    ))
+    .unwrap_or_else(|_| "—".to_string())
+}
+
+pub(crate) fn format_time_badge(date: OffsetDateTime) -> String {
+    date.format(&format_description!("[hour]:[minute]"))
+        .unwrap_or_else(|_| "—".to_string())
 }
 
 pub(crate) fn qc_summary(record: &SummaryRecord) -> String {

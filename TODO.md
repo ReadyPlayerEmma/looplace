@@ -75,19 +75,19 @@
 
 ## M2 — Results UI (lists + charts + export)
 
-* [ ] **Results list (`ui/results/list.rs`)**
+* [x] **Results list (`ui/results/list.rs`)**
 
   * Reverse-chronological runs; columns: date/time, platform, median RT, lapses, QC flag
-  * Filter by task; search by date range (P1)
-* [ ] **Details (`ui/results/detail.rs`)**
+  * [ ] Filter by task; search by date range (P1)
+* [x] **Details (`ui/results/detail.rs`)**
 
   * Stat cards + notes + QC chips
-* [ ] **Charts (`ui/results/charts.rs`)**
+* [x] **Charts (`ui/results/charts.rs`)**
 
   * **SVG sparkline** of median RT across sessions
   * **SVG bars**: lapses (≥500 ms) and false starts per session
-  * Optional histogram of RT bins (100 ms) (P1)
-* [ ] **Export (`ui/results/export.rs`)**
+  * [ ] Optional histogram of RT bins (100 ms) (P1)
+* [x] **Export (`ui/results/export.rs`)**
 
   * JSON: copy to clipboard + download
   * CSV: selected fields (task, when, median, lapses, false starts, slope, qc)
