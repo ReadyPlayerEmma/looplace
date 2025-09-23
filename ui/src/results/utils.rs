@@ -66,6 +66,11 @@ pub(crate) fn qc_summary(record: &SummaryRecord) -> String {
     }
 }
 
+pub(crate) fn record_is_clean(record: &SummaryRecord) -> bool {
+    let qc = &record.qc;
+    qc.min_trials_met && qc.focus_lost_events == 0 && qc.visibility_blur_events == 0
+}
+
 pub(crate) fn task_label(task: &str) -> &'static str {
     match task {
         "pvt" => "Psychomotor Vigilance",

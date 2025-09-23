@@ -6,7 +6,7 @@ use crate::{
     core::{format, storage::SummaryRecord},
     results::{
         format_date_badge, format_time_badge, format_timestamp, parse_nback_metrics,
-        parse_pvt_metrics, parse_timestamp,
+        parse_pvt_metrics, parse_timestamp, record_is_clean,
     },
 };
 
@@ -23,7 +23,17 @@ pub fn ResultsSparklines(records: Vec<SummaryRecord>) -> Element {
     let mut trend_points = Vec::new();
     let mut bar_points = Vec::new();
 
+    let mut clean_total = 0usize;
+    let mut clean_pvt = 0usize;
+    let mut clean_nback = 0usize;
+
     for record in records.iter().rev() {
+        if !record_is_clean(record) {
+            continue;
+        }
+
+        clean_total += 1;
+
         if let Some(ts) = parse_timestamp(record) {
             match record.task.as_str() {
                 "pvt" => {
@@ -41,6 +51,7 @@ pub fn ResultsSparklines(records: Vec<SummaryRecord>) -> Element {
                             lapses: metrics.lapses_ge_500ms,
                             false_starts: metrics.false_starts,
                         });
+                        clean_pvt += 1;
                     }
                 }
                 "nback2" => {
@@ -51,6 +62,7 @@ pub fn ResultsSparklines(records: Vec<SummaryRecord>) -> Element {
                         if metrics.d_prime.is_finite() {
                             nback_dprime.push(metrics.d_prime);
                         }
+                        clean_nback += 1;
                     }
                 }
                 _ => {}
@@ -102,17 +114,17 @@ pub fn ResultsSparklines(records: Vec<SummaryRecord>) -> Element {
                     div { class: "results-highlight",
                         span { class: "results-highlight__label", "Total runs" }
                         strong { class: "results-highlight__value", "{total_runs}" }
-                        span { class: "results-highlight__meta", "{pvt_runs} PVT · {nback_runs} 2-back" }
+                        span { class: "results-highlight__meta", "{clean_total} clean" }
                     }
                     div { class: "results-highlight",
                         span { class: "results-highlight__label", "Median PVT" }
                         strong { class: "results-highlight__value", "{format::format_ms(avg_pvt_median)}" }
-                        span { class: "results-highlight__meta", "{pvt_meta_text}" }
+                        span { class: "results-highlight__meta", "{pvt_meta_text} ({clean_pvt} clean)" }
                     }
                     div { class: "results-highlight",
                         span { class: "results-highlight__label", "2-back accuracy" }
                         strong { class: "results-highlight__value", "{format::format_percent(avg_nback_accuracy)}" }
-                        span { class: "results-highlight__meta", "{nback_accuracy_meta}" }
+                        span { class: "results-highlight__meta", "{nback_accuracy_meta} ({clean_nback} clean)" }
                     }
                     div { class: "results-highlight",
                         span { class: "results-highlight__label", "Average d′" }

@@ -3,7 +3,10 @@ use dioxus::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use crate::core::platform;
 use crate::core::storage::SummaryRecord;
-use crate::results::{parse_nback_metrics, parse_pvt_metrics, qc_summary};
+use crate::results::{
+    format_date_badge, format_time_badge, parse_nback_metrics, parse_pvt_metrics, parse_timestamp,
+    qc_summary, record_is_clean,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 enum ExportStatus {
@@ -540,33 +543,30 @@ async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn build_png_desktop(_records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
-    let width = 1200u32;
-    let height = 720u32;
-    let mut pixels = vec![0u8; (width * height * 4) as usize];
+    use image::{ImageBuffer, Rgba};
 
-    for y in 0..height {
-        let blend = y as f32 / height as f32;
-        let r = (15.0 + (6.0 * blend)) as u8;
-        let g = (17.0 + (4.0 * blend)) as u8;
-        let b = (22.0 + (10.0 * blend)) as u8;
-        for x in 0..width {
-            let idx = ((y * width + x) * 4) as usize;
-            pixels[idx] = r;
-            pixels[idx + 1] = g;
-            pixels[idx + 2] = b;
-            pixels[idx + 3] = 255;
-        }
+    const WIDTH: u32 = 1200;
+    const HEIGHT: u32 = 720;
+
+    let mut image = ImageBuffer::from_pixel(WIDTH, HEIGHT, Rgba([15, 17, 22, 255]));
+    apply_gradient(&mut image);
+
+    let lines = textual_summary(_records);
+    let mut y = 120u32;
+    for line in lines {
+        draw_text_line(&mut image, 80, y, &line, Rgba([245, 247, 251, 255]));
+        y = y.saturating_add(36);
     }
 
     let mut buffer = Vec::new();
     {
-        let mut encoder = png::Encoder::new(&mut buffer, width, height);
+        let mut encoder = png::Encoder::new(&mut buffer, WIDTH, HEIGHT);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         encoder
             .write_header()
             .map_err(|err| err.to_string())?
-            .write_image_data(&pixels)
+            .write_image_data(&image.into_raw())
             .map_err(|err| err.to_string())?;
     }
 
@@ -580,4 +580,288 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     format!(
         "<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='720' viewBox='0 0 1200 720'>\n  <defs>\n    <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>\n      <stop offset='0%' stop-color='#151923'/>\n      <stop offset='100%' stop-color='#0f1116'/>\n    </linearGradient>\n  </defs>\n  <rect width='1200' height='720' fill='url(#bg)'/>\n  <text x='60' y='140' fill='#f5f7fb' font-family='Inter, sans-serif' font-size='56' font-weight='700'>{header}</text>\n  <text x='60' y='190' fill='rgba(245,247,251,0.72)' font-family='Inter, sans-serif' font-size='28'>{sub}</text>\n</svg>"
     )
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn apply_gradient(image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
+    let height = image.height();
+    let width = image.width();
+    for y in 0..height {
+        let blend = y as f32 / height as f32;
+        let r = (17.0 + 26.0 * (1.0 - blend)) as u8;
+        let g = (20.0 + 20.0 * (1.0 - blend)) as u8;
+        let b = (28.0 + 18.0 * blend) as u8;
+        for x in 0..width {
+            image.put_pixel(x, y, image::Rgba([r, g, b, 255]));
+        }
+    }
+
+    for x in 0..width {
+        let idx = (x as f32 / width as f32).sin().abs();
+        let highlight = (idx * 28.0) as u8;
+        let pixel = image.get_pixel_mut(x, 40);
+        *pixel = image::Rgba([
+            pixel[0].saturating_add(highlight),
+            pixel[1].saturating_add(highlight),
+            pixel[2].saturating_add(highlight),
+            255,
+        ]);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn textual_summary(records: &[SummaryRecord]) -> Vec<String> {
+    let total = records.len();
+    let mut clean_records: Vec<&SummaryRecord> = records
+        .iter()
+        .filter(|record| record_is_clean(record))
+        .collect();
+
+    let clean_total = clean_records.len();
+
+    let mut pvt_medians = Vec::new();
+    let mut nback_accuracy = Vec::new();
+    let mut nback_dprime = Vec::new();
+
+    for record in &clean_records {
+        match record.task.as_str() {
+            "pvt" => {
+                if let Some(metrics) = parse_pvt_metrics(record) {
+                    if metrics.median_rt_ms.is_finite() {
+                        pvt_medians.push(metrics.median_rt_ms);
+                    }
+                }
+            }
+            "nback2" => {
+                if let Some(metrics) = parse_nback_metrics(record) {
+                    if metrics.accuracy.is_finite() {
+                        nback_accuracy.push(metrics.accuracy);
+                    }
+                    if metrics.d_prime.is_finite() {
+                        nback_dprime.push(metrics.d_prime);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut lines = Vec::new();
+    lines.push("Looplace results".to_string());
+    lines.push(format!("{clean_total:02}/{total:02} clean runs"));
+
+    if let Some(avg) = average_value(&pvt_medians) {
+        lines.push(format!("PVT avg {} ms", avg.round() as i64));
+    }
+    if let Some(acc) = average_value(&nback_accuracy) {
+        let pct = (acc * 100.0).round() as i64;
+        lines.push(format!("Nback acc {pct} pct"));
+    }
+    if let Some(dprime) = average_value(&nback_dprime) {
+        lines.push(format!("Nback dprime {:.1}", dprime));
+    }
+
+    clean_records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    for record in clean_records.into_iter().take(6) {
+        let stamp = parse_timestamp(record)
+            .map(|time| {
+                let date = format_date_badge(time);
+                let clock = format_time_badge(time);
+                format!("{date} {clock}")
+            })
+            .unwrap_or_else(|| record.created_at.clone());
+
+        match record.task.as_str() {
+            "pvt" => {
+                if let Some(metrics) = parse_pvt_metrics(record) {
+                    let median = metrics.median_rt_ms.round() as i64;
+                    let lapses = metrics.lapses_ge_500ms;
+                    lines.push(format!("PVT {stamp} MED {median} ms LPS {lapses}"));
+                }
+            }
+            "nback2" => {
+                if let Some(metrics) = parse_nback_metrics(record) {
+                    let acc = (metrics.accuracy * 100.0).round() as i64;
+                    let dp = metrics.d_prime;
+                    lines.push(format!("NBACK {stamp} ACC {acc} pct DP {:.1}", dp));
+                }
+            }
+            other => {
+                lines.push(format!("{other} {stamp}"));
+            }
+        }
+    }
+
+    lines
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn average_value(values: &[f64]) -> Option<f64> {
+    if values.is_empty() {
+        None
+    } else {
+        Some(values.iter().copied().sum::<f64>() / values.len() as f64)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn draw_text_line(
+    image: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    mut x: u32,
+    top: u32,
+    text: &str,
+    color: image::Rgba<u8>,
+) {
+    let uppercase = text.to_ascii_uppercase();
+    for ch in uppercase.chars() {
+        if ch == ' ' {
+            x = x.saturating_add(6);
+            continue;
+        }
+        if let Some(pattern) = glyph_rows(ch) {
+            for (row_idx, row) in pattern.iter().enumerate() {
+                for (col_idx, pixel) in row.chars().enumerate() {
+                    if pixel != ' ' {
+                        let px = x + col_idx as u32;
+                        let py = top + row_idx as u32;
+                        if px < image.width() && py < image.height() {
+                            image.put_pixel(px, py, color);
+                        }
+                    }
+                }
+            }
+            x = x.saturating_add(pattern.first().map(|row| row.len()).unwrap_or(5) as u32 + 2);
+        } else {
+            x = x.saturating_add(6);
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn glyph_rows(ch: char) -> Option<&'static [&'static str; 7]> {
+    match ch {
+        'A' => Some(&[
+            "  #  ", " # # ", "#   #", "#####", "#   #", "#   #", "#   #",
+        ]),
+        'B' => Some(&[
+            "#### ", "#   #", "#   #", "#### ", "#   #", "#   #", "#### ",
+        ]),
+        'C' => Some(&[
+            " ### ", "#   #", "#    ", "#    ", "#    ", "#   #", " ### ",
+        ]),
+        'D' => Some(&[
+            "#### ", "#   #", "#   #", "#   #", "#   #", "#   #", "#### ",
+        ]),
+        'E' => Some(&[
+            "#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#####",
+        ]),
+        'F' => Some(&[
+            "#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#    ",
+        ]),
+        'G' => Some(&[
+            " ### ", "#   #", "#    ", "# ###", "#   #", "#   #", " ### ",
+        ]),
+        'H' => Some(&[
+            "#   #", "#   #", "#   #", "#####", "#   #", "#   #", "#   #",
+        ]),
+        'I' => Some(&[
+            " ### ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", " ### ",
+        ]),
+        'J' => Some(&["  ###", "   #", "   #", "   #", "#  #", "#  #", " ## "]),
+        'K' => Some(&[
+            "#   #", "#  # ", "# #  ", "##   ", "# #  ", "#  # ", "#   #",
+        ]),
+        'L' => Some(&[
+            "#    ", "#    ", "#    ", "#    ", "#    ", "#    ", "#####",
+        ]),
+        'M' => Some(&[
+            "#   #", "## ##", "# # #", "# # #", "#   #", "#   #", "#   #",
+        ]),
+        'N' => Some(&[
+            "#   #", "##  #", "# # #", "#  ##", "#   #", "#   #", "#   #",
+        ]),
+        'O' => Some(&[
+            " ### ", "#   #", "#   #", "#   #", "#   #", "#   #", " ### ",
+        ]),
+        'P' => Some(&[
+            "#### ", "#   #", "#   #", "#### ", "#    ", "#    ", "#    ",
+        ]),
+        'Q' => Some(&[
+            " ### ", "#   #", "#   #", "#   #", "# # #", "#  # ", " ## #",
+        ]),
+        'R' => Some(&[
+            "#### ", "#   #", "#   #", "#### ", "# #  ", "#  # ", "#   #",
+        ]),
+        'S' => Some(&[
+            " ####", "#    ", "#    ", " ### ", "    #", "    #", "#### ",
+        ]),
+        'T' => Some(&[
+            "#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ",
+        ]),
+        'U' => Some(&[
+            "#   #", "#   #", "#   #", "#   #", "#   #", "#   #", " ### ",
+        ]),
+        'V' => Some(&[
+            "#   #", "#   #", "#   #", "#   #", " # # ", " # # ", "  #  ",
+        ]),
+        'W' => Some(&[
+            "#   #", "#   #", "#   #", "# # #", "# # #", "## ##", "#   #",
+        ]),
+        'X' => Some(&[
+            "#   #", "#   #", " # # ", "  #  ", " # # ", "#   #", "#   #",
+        ]),
+        'Y' => Some(&[
+            "#   #", "#   #", " # # ", "  #  ", "  #  ", "  #  ", "  #  ",
+        ]),
+        'Z' => Some(&[
+            "#####", "    #", "   # ", "  #  ", " #   ", "#    ", "#####",
+        ]),
+        '0' => Some(&[
+            " ### ", "#   #", "#  ##", "# # #", "##  #", "#   #", " ### ",
+        ]),
+        '1' => Some(&[
+            "  #  ", " ##  ", "# #  ", "  #  ", "  #  ", "  #  ", "#####",
+        ]),
+        '2' => Some(&[
+            " ### ", "#   #", "    #", "   # ", "  #  ", " #   ", "#####",
+        ]),
+        '3' => Some(&[
+            " ### ", "#   #", "    #", " ### ", "    #", "#   #", " ### ",
+        ]),
+        '4' => Some(&[
+            "   # ", "  ## ", " # # ", "#  # ", "#####", "   # ", "   # ",
+        ]),
+        '5' => Some(&[
+            "#####", "#    ", "#    ", "#### ", "    #", "#   #", " ### ",
+        ]),
+        '6' => Some(&[
+            " ### ", "#   #", "#    ", "#### ", "#   #", "#   #", " ### ",
+        ]),
+        '7' => Some(&[
+            "#####", "    #", "   # ", "  #  ", "  #  ", "  #  ", "  #  ",
+        ]),
+        '8' => Some(&[
+            " ### ", "#   #", "#   #", " ### ", "#   #", "#   #", " ### ",
+        ]),
+        '9' => Some(&[
+            " ### ", "#   #", "#   #", " ####", "    #", "#   #", " ### ",
+        ]),
+        '-' => Some(&[
+            "     ", "     ", "     ", " ### ", "     ", "     ", "     ",
+        ]),
+        '.' => Some(&[
+            "     ", "     ", "     ", "     ", "     ", " ### ", " ### ",
+        ]),
+        '/' => Some(&[
+            "    #", "   # ", "   # ", "  #  ", " #   ", "#    ", "#    ",
+        ]),
+        ':' => Some(&[
+            "     ", "  ## ", "  ## ", "     ", "  ## ", "  ## ", "     ",
+        ]),
+        default => {
+            let _ = default;
+            None
+        }
+    }
 }
