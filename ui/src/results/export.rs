@@ -23,6 +23,7 @@ const MIN_SPARK_PLOT_HEIGHT: f64 = 80.0;
 const MIN_BARS_PLOT_HEIGHT: f64 = 70.0;
 const MAX_SPARK_PLOT_HEIGHT: f64 = 180.0;
 const MAX_BARS_PLOT_HEIGHT: f64 = 130.0;
+const CHART_TOP_PAD_FACTOR: f64 = 0.10; // 10% vertical headroom inside charts
 
 // Grid / stroke opacities
 const OP_GRID: f64 = 0.10;
@@ -1050,6 +1051,7 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
     let spark_subtitle_baseline = spark_title_baseline + spark_header_metrics.0.line_height + 6.0;
     let spark_chart =
         build_sparkline_chart(&overview.spark_points, spark_plot_width, spark_plot_height);
+    let spark_chart_offset_y = spark_plot_height * CHART_TOP_PAD_FACTOR;
 
     let _ = writeln!(
         svg,
@@ -1083,7 +1085,7 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
         let _ = writeln!(
             svg,
             "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' aria-roledescription='chart' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
-            CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + spark_header_height, clip_spark
+            CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + spark_header_height + spark_chart_offset_y, clip_spark
         );
         let _ = writeln!(
             svg,
@@ -1114,14 +1116,14 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
         );
         let _ = writeln!(
             svg,
-            "      <text x='0' y='-14' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='13'>{}</text>",
+            "      <text x='0' y='12' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='13'>{}</text>",
             theme.text_base,
             OP_TEXT_MUTED,
             escape_text(&chart.min_label)
         );
         let _ = writeln!(
             svg,
-            "      <text x='{:.2}' y='-14' text-anchor='end' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='13'>{}</text>",
+            "      <text x='{:.2}' y='12' text-anchor='end' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='13'>{}</text>",
             chart.width,
             theme.text_base,
             OP_TEXT_MUTED,
@@ -1172,6 +1174,7 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
         bars_plot_width,
         bars_plot_height,
     );
+    let bars_chart_offset_y = bars_plot_height * CHART_TOP_PAD_FACTOR;
 
     let _ = writeln!(
         svg,
@@ -1236,7 +1239,7 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
         let _ = writeln!(
             svg,
             "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' aria-roledescription='chart' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
-            CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + bars_header_height, clip_bars
+            CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + bars_header_height + bars_chart_offset_y, clip_bars
         );
         let _ = writeln!(
             svg,
