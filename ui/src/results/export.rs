@@ -1,3 +1,4 @@
+use base64::Engine as _;
 use dioxus::prelude::*;
 use std::fmt::Write as _;
 
@@ -21,12 +22,55 @@ const HIGHLIGHT_GAP: f64 = 20.0;
 const MIN_SPARK_PLOT_HEIGHT: f64 = 80.0;
 const MIN_BARS_PLOT_HEIGHT: f64 = 70.0;
 
+// Grid / stroke opacities
+const OP_GRID: f64 = 0.10;
+
+// Unique ID + pixel snapping helpers
+use std::sync::atomic::{AtomicU64, Ordering};
+fn uid(prefix: &str) -> String {
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    format!("{prefix}-{}", COUNTER.fetch_add(1, Ordering::Relaxed))
+}
+fn crisp(v: f64) -> f64 {
+    v.floor() + 0.5
+}
+
+/// Ellipsize helper for bar labels (defensive)
+fn ellipsize(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let mut it = s.chars();
+        let truncated: String = it.by_ref().take(max_chars.saturating_sub(1)).collect();
+        format!("{truncated}…")
+    }
+}
+
+// Opacity tokens (separated from base hex colors)
+const OP_CARD_FILL: f64 = 0.05;
+const OP_CARD_STROKE: f64 = 0.08;
+const OP_TEXT_MUTED: f64 = 0.62;
+const OP_TEXT_META: f64 = 0.55;
+const OP_ACCENT_SOFT: f64 = 0.12;
+const FONT_STACK: &str = "Inter, Segoe UI, sans-serif";
+
 #[derive(Clone, Copy)]
 struct Rect {
     x: f64,
     y: f64,
     width: f64,
     height: f64,
+}
+
+impl Rect {
+    fn inset(&self, x: f64, y: f64) -> Rect {
+        Rect {
+            x: self.x + x,
+            y: self.y + y,
+            width: (self.width - 2.0 * x).max(0.0),
+            height: (self.height - 2.0 * y).max(0.0),
+        }
+    }
 }
 
 struct Layout {
@@ -56,6 +100,18 @@ impl Layout {
         self.cursor_y += height + self.gutter;
         rect
     }
+
+    fn report(&self, canvas_h: f64) -> LayoutReport {
+        LayoutReport {
+            used_height: self.cursor_y - self.gutter + CANVAS_MARGIN,
+            canvas_height: canvas_h,
+        }
+    }
+}
+
+struct LayoutReport {
+    used_height: f64,
+    canvas_height: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -64,11 +120,7 @@ struct TextMetrics {
     baseline: f64,
 }
 
-// Unified text metrics: if the `embed_inter` feature is enabled we derive
-// baselines from the real embedded Inter fonts via the `fonts` module.
-// Otherwise we retain the legacy heuristic so contributors without the
-// font files still get a working (if less precise) export.
-fn text_metrics(size: f64, weight: &str) -> TextMetrics {
+fn text_metrics(size: f64, #[allow(unused_variables)] weight: &str) -> TextMetrics {
     #[cfg(feature = "embed_inter")]
     {
         use crate::results::fonts::{measure, FontWeight};
@@ -78,7 +130,6 @@ fn text_metrics(size: f64, weight: &str) -> TextMetrics {
             _ => FontWeight::Regular,
         };
         let m = measure(wt, size);
-        // Treat ascender as baseline position; reuse measured line height.
         TextMetrics {
             line_height: m.line_h,
             baseline: m.asc,
@@ -86,7 +137,8 @@ fn text_metrics(size: f64, weight: &str) -> TextMetrics {
     }
     #[cfg(not(feature = "embed_inter"))]
     {
-        // Legacy heuristic (kept for compatibility without embedded fonts).
+        // Mark weight as used so non-embed builds don’t warn.
+        let _ = weight;
         let line_height = size * 1.28;
         let baseline = size * 0.92;
         TextMetrics {
@@ -96,28 +148,25 @@ fn text_metrics(size: f64, weight: &str) -> TextMetrics {
     }
 }
 
+// Separate color from opacity
 struct Theme {
     background: &'static str,
     card_fill: &'static str,
     card_stroke: &'static str,
     text_primary: &'static str,
-    text_muted: &'static str,
-    text_meta: &'static str,
+    text_base: &'static str,
     accent: &'static str,
-    accent_soft: &'static str,
 }
 
 impl Theme {
     fn default() -> Self {
         Self {
             background: "url(#bg)",
-            card_fill: "rgba(255,255,255,0.05)",
-            card_stroke: "rgba(255,255,255,0.08)",
+            card_fill: "#ffffff",
+            card_stroke: "#ffffff",
             text_primary: "#f5f7fb",
-            text_muted: "rgba(245,247,251,0.62)",
-            text_meta: "rgba(245,247,251,0.55)",
+            text_base: "#f5f7fb",
             accent: "#f05a7e",
-            accent_soft: "rgba(240,90,126,0.12)",
         }
     }
 }
@@ -434,7 +483,6 @@ fn build_csv(records: &[SummaryRecord]) -> String {
         row.push(qc_focus);
         row.push(qc_blur);
         row.push(qc_min);
-
         rows.push(row);
     }
 
@@ -442,13 +490,12 @@ fn build_csv(records: &[SummaryRecord]) -> String {
     for row in rows {
         let line = row
             .into_iter()
-            .map(|field| escape_csv(&field))
+            .map(|f| escape_csv(&f))
             .collect::<Vec<_>>()
             .join(",");
         csv.push_str(&line);
         csv.push('\n');
     }
-
     csv
 }
 
@@ -456,7 +503,6 @@ fn escape_csv(value: &str) -> String {
     if value.is_empty() {
         return String::new();
     }
-
     let needs_quotes = value.contains(',') || value.contains('"') || value.contains('\n');
     if needs_quotes {
         let escaped = value.replace('"', "\"\"");
@@ -468,7 +514,6 @@ fn escape_csv(value: &str) -> String {
 
 fn timestamp_slug() -> String {
     use time::{macros::format_description, OffsetDateTime};
-
     OffsetDateTime::now_utc()
         .format(&format_description!(
             "[year][month][day]_[hour][minute][second]"
@@ -480,11 +525,9 @@ async fn copy_to_clipboard(payload: String) -> Result<(), String> {
     #[cfg(target_arch = "wasm32")]
     {
         use wasm_bindgen::JsCast;
-
         let window = web_sys::window().ok_or("window unavailable")?;
         let document = window.document().ok_or("document unavailable")?;
         let body = document.body().ok_or("missing body")?;
-
         let textarea = document
             .create_element("textarea")
             .map_err(|_| "Unable to create textarea")?
@@ -496,7 +539,6 @@ async fn copy_to_clipboard(payload: String) -> Result<(), String> {
         style.set_property("top", "0").ok();
         style.set_property("left", "0").ok();
         style.set_property("opacity", "0").ok();
-
         body.append_child(&textarea).ok();
         textarea.select();
         if !document.exec_command("copy").unwrap_or(false) {
@@ -506,11 +548,9 @@ async fn copy_to_clipboard(payload: String) -> Result<(), String> {
         textarea.remove();
         Ok(())
     }
-
     #[cfg(not(target_arch = "wasm32"))]
     {
         use arboard::Clipboard;
-
         let mut clipboard = Clipboard::new().map_err(|err| err.to_string())?;
         clipboard.set_text(payload).map_err(|err| err.to_string())
     }
@@ -525,18 +565,15 @@ async fn download_bytes(
     {
         use wasm_bindgen::JsCast;
         use web_sys::{Blob, BlobPropertyBag, HtmlAnchorElement, Url};
-
         let array = js_sys::Uint8Array::from(bytes.as_slice());
         let mut parts = js_sys::Array::new();
         parts.push(&array.buffer());
-
         let mut opts = BlobPropertyBag::new();
         opts.type_(mime);
         let blob = Blob::new_with_u8_array_sequence_and_options(&parts, &opts)
             .map_err(|_| "Failed to create blob".to_string())?;
         let url = Url::create_object_url_with_blob(&blob)
             .map_err(|_| "Unable to create download".to_string())?;
-
         let document = web_sys::window()
             .and_then(|w| w.document())
             .ok_or("Document unavailable")?;
@@ -548,7 +585,6 @@ async fn download_bytes(
         anchor.set_href(&url);
         anchor.set_download(filename);
         anchor.style().set_property("display", "none").ok();
-
         document
             .body()
             .ok_or("Missing body")?
@@ -557,15 +593,12 @@ async fn download_bytes(
         anchor.click();
         anchor.remove();
         Url::revoke_object_url(&url).ok();
-
         Ok(None)
     }
-
     #[cfg(not(target_arch = "wasm32"))]
     {
         use std::fs;
         use std::io::Write;
-
         let _ = mime;
         let dir = desktop_export_dir()?;
         fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
@@ -580,8 +613,7 @@ async fn download_bytes(
 fn desktop_export_dir() -> Result<std::path::PathBuf, String> {
     let dirs = directories::ProjectDirs::from("com", "Looplace", "Looplace")
         .ok_or("Unable to determine export directory")?;
-    let dir = dirs.data_dir().join("exports");
-    Ok(dir)
+    Ok(dirs.data_dir().join("exports"))
 }
 
 async fn build_png_snapshot(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
@@ -589,7 +621,6 @@ async fn build_png_snapshot(records: &[SummaryRecord]) -> Result<Vec<u8>, String
     {
         build_png_web(records).await
     }
-
     #[cfg(not(target_arch = "wasm32"))]
     {
         build_png_desktop(records)
@@ -623,8 +654,17 @@ async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
         .map_err(|_| "Unable to create canvas")?
         .dyn_into()
         .map_err(|_| "Canvas cast failed")?;
-    canvas.set_width(EXPORT_CANVAS_WIDTH);
-    canvas.set_height(EXPORT_CANVAS_HEIGHT);
+    canvas.set_width((EXPORT_CANVAS_WIDTH * dpr) as u32);
+    canvas.set_height((EXPORT_CANVAS_HEIGHT * dpr) as u32);
+    // Optional: keep CSS size unscaled (if canvas added to DOM later)
+    canvas
+        .style()
+        .set_property("width", &format!("{}px", EXPORT_CANVAS_WIDTH))
+        .ok();
+    canvas
+        .style()
+        .set_property("height", &format!("{}px", EXPORT_CANVAS_HEIGHT))
+        .ok();
 
     let context: CanvasRenderingContext2d = canvas
         .get_context("2d")
@@ -641,6 +681,9 @@ async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
         .map_err(|_| "Image decode failed")?;
 
     context
+        .scale(dpr, dpr)
+        .map_err(|_| "Unable to scale context")?;
+    context
         .draw_image_with_html_image_element(&image, 0.0, 0.0)
         .map_err(|_| "Unable to draw image")?;
 
@@ -651,21 +694,74 @@ async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
 
     let bytes = base64::decode(data_url.split(',').nth(1).ok_or("Malformed data URL")?)
         .map_err(|_| "PNG decode failed")?;
-
     Ok(bytes)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn build_png_desktop(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
-    let svg_markup = svg_snapshot(records);
-    svg_to_png(
-        &svg_markup,
-        EXPORT_CANVAS_WIDTH as u32,
-        EXPORT_CANVAS_HEIGHT as u32,
-    )
+    // Allow environment override for scale (e.g. LOOPLACE_EXPORT_SCALE=2)
+    let scale = std::env::var("LOOPLACE_EXPORT_SCALE")
+        .ok()
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|s| *s >= 1.0 && *s <= 4.0)
+        .unwrap_or(1.5);
+    let svg_markup = svg_snapshot_with_scale(records, scale);
+    let w = (EXPORT_CANVAS_WIDTH * scale).round() as u32;
+    let h = (EXPORT_CANVAS_HEIGHT * scale).round() as u32;
+    svg_to_png(&svg_markup, w, h)
 }
 
-fn svg_snapshot(records: &[SummaryRecord]) -> String {
+fn fit_plots(
+    spark: &mut f64,
+    bars: &mut f64,
+    min_spark: f64,
+    min_bars: f64,
+    avail_height: f64,
+    static_height: f64,
+) {
+    let target = (avail_height - static_height).max(min_spark + min_bars);
+    let mut current = *spark + *bars;
+    if current <= target {
+        return;
+    }
+
+    loop {
+        let flex_s = (*spark - min_spark).max(0.0);
+        let flex_b = (*bars - min_bars).max(0.0);
+        let flex = flex_s + flex_b;
+        if flex <= 1e-6 {
+            break;
+        }
+
+        let need = current - target;
+        let k = (need / flex).min(1.0);
+
+        *spark -= flex_s * k;
+        *bars -= flex_b * k;
+        current = *spark + *bars;
+
+        if current <= target + 1e-6 {
+            break;
+        }
+    }
+
+    // Guard rails
+    if *spark < min_spark {
+        *spark = min_spark;
+    }
+    if *bars < min_bars {
+        *bars = min_bars;
+    }
+}
+
+pub fn svg_snapshot(records: &[SummaryRecord]) -> String {
+    svg_snapshot_with_scale(records, 1.0)
+}
+
+#[allow(dead_code)]
+const _SVG_SNAPSHOT_REF: fn(&[SummaryRecord]) -> String = svg_snapshot;
+
+fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
     let overview = SnapshotOverview::build(records);
     let theme = Theme::default();
 
@@ -723,35 +819,21 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     let bars_header_height =
         bars_header_metrics.0.line_height + 6.0 + bars_header_metrics.1.line_height;
 
-    let mut total_height = title_block_height
+    // Static vertical components (excluding plot heights)
+    let static_vertical = title_block_height
         + highlight_block_height
-        + (spark_header_height + spark_plot_height + CARD_PADDING_Y)
-        + (bars_header_height + bars_plot_height + CARD_PADDING_Y)
+        + (spark_header_height + CARD_PADDING_Y)
+        + (bars_header_height + CARD_PADDING_Y)
         + CANVAS_GUTTER * 3.0;
 
-    while CANVAS_MARGIN * 2.0 + total_height > EXPORT_CANVAS_HEIGHT {
-        if spark_plot_height <= MIN_SPARK_PLOT_HEIGHT + 0.1
-            && bars_plot_height <= MIN_BARS_PLOT_HEIGHT + 0.1
-        {
-            break;
-        }
-        let overflow = CANVAS_MARGIN * 2.0 + total_height - EXPORT_CANVAS_HEIGHT;
-        let plots_total = spark_plot_height + bars_plot_height;
-        if plots_total <= 140.0 {
-            break;
-        }
-        let reduction = overflow.min(plots_total - 140.0);
-        let factor = reduction / plots_total;
-        spark_plot_height =
-            (spark_plot_height - spark_plot_height * factor).max(MIN_SPARK_PLOT_HEIGHT);
-        bars_plot_height = (bars_plot_height - bars_plot_height * factor).max(MIN_BARS_PLOT_HEIGHT);
-
-        total_height = title_block_height
-            + highlight_block_height
-            + (spark_header_height + spark_plot_height + CARD_PADDING_Y)
-            + (bars_header_height + bars_plot_height + CARD_PADDING_Y)
-            + CANVAS_GUTTER * 3.0;
-    }
+    fit_plots(
+        &mut spark_plot_height,
+        &mut bars_plot_height,
+        MIN_SPARK_PLOT_HEIGHT,
+        MIN_BARS_PLOT_HEIGHT,
+        EXPORT_CANVAS_HEIGHT - CANVAS_MARGIN * 2.0,
+        static_vertical,
+    );
 
     let spark_card_height = spark_header_height + spark_plot_height + CARD_PADDING_Y;
     let bars_card_height = bars_header_height + bars_plot_height + CARD_PADDING_Y;
@@ -761,6 +843,19 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     let highlight_rect = layout.place_block(highlight_block_height);
     let spark_rect = layout.place_block(spark_card_height);
     let bars_rect = layout.place_block(bars_card_height);
+
+    // Inner rects with padding (avoid repeating math)
+    let spark_inner = spark_rect.inset(CARD_PADDING_X, CARD_PADDING_Y / 2.0);
+    let bars_inner = bars_rect.inset(CARD_PADDING_X, CARD_PADDING_Y / 2.0);
+
+    // Layout report assert (debug builds)
+    let report = layout.report(EXPORT_CANVAS_HEIGHT);
+    debug_assert!(
+        report.used_height <= report.canvas_height + 0.5,
+        "export overflow: used {:.1} > canvas {:.1}",
+        report.used_height,
+        report.canvas_height
+    );
 
     let total_meta = if overview.clean_runs > 0 {
         format!("{} clean", overview.clean_runs)
@@ -800,15 +895,33 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         ("2-back d′", dprime_value, dprime_meta),
     ];
 
-    let mut svg = String::new();
+    let mut svg = String::with_capacity(48_000);
+    // scale supplied by caller (1.0 normal, 2.0 for @2x, etc.)
+
+    // Precompute clip IDs
+    let clip_spark = uid("spark");
+    let clip_bars = uid("bars");
+
+    // We already have inner rects; derive plot widths/heights before defs so clipPaths can live in <defs>
+    let spark_plot_width = spark_inner.width;
+    let bars_plot_width = bars_inner.width;
+
+    let inter_bytes = include_bytes!("../../assets/Inter-Variable.ttf");
+    let inter_b64 = base64::engine::general_purpose::STANDARD.encode(inter_bytes);
+
+    let pixel_w = (EXPORT_CANVAS_WIDTH * scale).round();
+    let pixel_h = (EXPORT_CANVAS_HEIGHT * scale).round();
     let _ = writeln!(
         svg,
         "<svg xmlns='http://www.w3.org/2000/svg' width='{:.0}' height='{:.0}' viewBox='0 0 {:.0} {:.0}' role='img'>",
-        EXPORT_CANVAS_WIDTH,
-        EXPORT_CANVAS_HEIGHT,
+        pixel_w,
+        pixel_h,
         EXPORT_CANVAS_WIDTH,
         EXPORT_CANVAS_HEIGHT
     );
+    let _ = writeln!(svg, "  <title>Looplace results snapshot</title>");
+    let _ = writeln!(svg, "  <desc>Summary of recent cognitive runs</desc>");
+    let _ = writeln!(svg, "  <style>@font-face{{font-family:'Inter Export';src:url(data:font/ttf;base64,{}) format('truetype');font-weight:100 900;font-style:normal;font-display:swap}}text{{font-family:'Inter Export',Inter,'Segoe UI',sans-serif}}</style>", inter_b64);
     let _ = writeln!(svg, "  <defs>");
     let _ = writeln!(
         svg,
@@ -817,6 +930,16 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     let _ = writeln!(svg, "      <stop offset='0%' stop-color='#151923'/>");
     let _ = writeln!(svg, "      <stop offset='100%' stop-color='#0f1116'/>");
     let _ = writeln!(svg, "    </linearGradient>");
+    let _ = writeln!(
+        svg,
+        "    <clipPath id='{clip_spark}' clipPathUnits='userSpaceOnUse'><rect x='0' y='0' width='{:.2}' height='{:.2}' rx='8'/></clipPath>",
+        spark_plot_width, spark_plot_height
+    );
+    let _ = writeln!(
+        svg,
+        "    <clipPath id='{clip_bars}' clipPathUnits='userSpaceOnUse'><rect x='0' y='0' width='{:.2}' height='{:.2}' rx='8'/></clipPath>",
+        bars_plot_width, bars_plot_height
+    );
     let _ = writeln!(svg, "  </defs>");
     let _ = writeln!(
         svg,
@@ -827,11 +950,9 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     // Title block
     let title_baseline = title_metrics.baseline;
     let subtitle_baseline = title_baseline + subtitle_metrics.line_height + 8.0;
-    let meta_baseline = if latest_line.is_some() {
-        Some(subtitle_baseline + subtitle_metrics.line_height + 6.0)
-    } else {
-        None
-    };
+    let meta_baseline = latest_line
+        .as_ref()
+        .map(|_| subtitle_baseline + subtitle_metrics.line_height + 6.0);
 
     let _ = writeln!(
         svg,
@@ -840,22 +961,24 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     );
     let _ = writeln!(
         svg,
-        "    <text x='0' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='56' font-weight='700'>Looplace results</text>",
+        "    <text x='0' y='{:.2}' fill='{}' font-family='{FONT_STACK}' font-size='56' font-weight='700'>Looplace results</text>",
         title_baseline,
         theme.text_primary
     );
     let _ = writeln!(
         svg,
-        "    <text x='0' y='{:.2}' fill='rgba(245,247,251,0.72)' font-family='Inter, Segoe UI, sans-serif' font-size='26'>{}</text>",
+        "    <text x='0' y='{:.2}' fill='{}' fill-opacity='0.72' font-family='{FONT_STACK}' font-size='26'>{}</text>",
         subtitle_baseline,
+        theme.text_base,
         escape_text(&subtitle)
     );
     if let Some(meta) = latest_line.as_ref() {
         let _ = writeln!(
             svg,
-            "    <text x='0' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='18'>{}</text>",
+            "    <text x='0' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='18'>{}</text>",
             meta_baseline.unwrap(),
-            theme.text_meta,
+            theme.text_base,
+            OP_TEXT_META,
             escape_text(meta)
         );
     }
@@ -864,7 +987,7 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     // Highlight cards
     let card_count = highlight_cards.len() as f64;
     let total_gap = HIGHLIGHT_GAP * (card_count - 1.0);
-    let card_width = (highlight_rect.width - total_gap) / card_count;
+    let card_width = ((highlight_rect.width - total_gap) / card_count).floor();
     let highlight_label_baseline = CARD_PADDING_Y / 2.0 + highlight_label_metrics.baseline;
     let highlight_value_baseline =
         highlight_label_baseline + highlight_label_metrics.line_height + 6.0;
@@ -872,7 +995,7 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         highlight_value_baseline + highlight_value_metrics.line_height + 8.0;
 
     for (index, (label, value, meta)) in highlight_cards.iter().enumerate() {
-        let card_x = highlight_rect.x + index as f64 * (card_width + HIGHLIGHT_GAP);
+        let card_x = crisp(highlight_rect.x + index as f64 * (card_width + HIGHLIGHT_GAP));
         let label_upper = label.to_ascii_uppercase();
         let _ = writeln!(
             svg,
@@ -881,19 +1004,21 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         );
         let _ = writeln!(
             svg,
-            "    <rect width='{:.2}' height='{:.2}' rx='{:.1}' fill='{}' stroke='{}'/>",
-            card_width, highlight_rect.height, CARD_RADIUS, theme.card_fill, theme.card_stroke
+            "    <rect width='{:.2}' height='{:.2}' rx='{:.1}' fill='{}' fill-opacity='{:.3}' stroke='{}' stroke-opacity='{:.3}'/>",
+            card_width, highlight_rect.height, CARD_RADIUS,
+            theme.card_fill, OP_CARD_FILL, theme.card_stroke, OP_CARD_STROKE
         );
         let _ = writeln!(
             svg,
-            "    <text x='{:.2}' y='{:.2}' fill='rgba(245,247,251,0.66)' font-family='Inter, Segoe UI, sans-serif' font-size='16' letter-spacing='0.08em'>{}</text>",
+            "    <text x='{:.2}' y='{:.2}' fill='{}' fill-opacity='0.66' font-family='{FONT_STACK}' font-size='16' letter-spacing='0.08em'>{}</text>",
             CARD_PADDING_X,
             highlight_label_baseline,
+            theme.text_base,
             escape_text(&label_upper)
         );
         let _ = writeln!(
             svg,
-            "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='36' font-weight='600'>{}</text>",
+            "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='{FONT_STACK}' font-size='36' font-weight='600'>{}</text>",
             CARD_PADDING_X,
             highlight_value_baseline,
             theme.text_primary,
@@ -901,19 +1026,20 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         );
         let _ = writeln!(
             svg,
-            "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='15'>{}</text>",
+            "    <text x='{:.2}' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='15'>{}</text>",
             CARD_PADDING_X,
             highlight_meta_baseline,
-            theme.text_meta,
+            theme.text_base,
+            OP_TEXT_META,
             escape_text(meta)
         );
         let _ = writeln!(svg, "  </g>");
     }
 
     // Spark card
-    let spark_plot_width = spark_rect.width - CARD_PADDING_X * 2.0;
-    let spark_plot_origin_y = CARD_PADDING_Y / 2.0 + spark_header_height;
-    let spark_title_baseline = CARD_PADDING_Y / 2.0 + spark_header_metrics.0.baseline;
+    let spark_plot_width = spark_inner.width;
+    let spark_plot_origin_y = spark_inner.y - spark_rect.y + spark_header_height;
+    let spark_title_baseline = (CARD_PADDING_Y / 2.0) + spark_header_metrics.0.baseline;
     let spark_subtitle_baseline = spark_title_baseline + spark_header_metrics.0.line_height + 6.0;
     let spark_chart =
         build_sparkline_chart(&overview.spark_points, spark_plot_width, spark_plot_height);
@@ -925,34 +1051,37 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     );
     let _ = writeln!(
         svg,
-        "    <rect width='{:.2}' height='{:.2}' rx='{:.1}' fill='{}' stroke='{}'/>",
-        spark_rect.width, spark_rect.height, CARD_RADIUS, theme.card_fill, theme.card_stroke
+        "    <rect width='{:.2}' height='{:.2}' rx='{:.1}' fill='{}' fill-opacity='{:.2}' stroke='{}' stroke-opacity='{:.2}'/>",
+        spark_rect.width, spark_rect.height, CARD_RADIUS,
+        theme.card_fill, OP_CARD_FILL, theme.card_stroke, OP_CARD_STROKE
     );
     let _ = writeln!(
         svg,
-        "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='24' font-weight='600'>PVT trend</text>",
+        "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='{FONT_STACK}' font-size='24' font-weight='600'>PVT trend</text>",
         CARD_PADDING_X,
         spark_title_baseline,
         theme.text_primary
     );
     let _ = writeln!(
         svg,
-        "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Median reaction time across clean runs</text>",
+        "    <text x='{:.2}' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='16'>Median reaction time across clean runs</text>",
         CARD_PADDING_X,
         spark_subtitle_baseline,
-        theme.text_muted
+        theme.text_base,
+        OP_TEXT_MUTED
     );
 
     if let Some(chart) = spark_chart {
+        let baseline_y = crisp(chart.height);
         let _ = writeln!(
             svg,
-            "    <g transform='translate({:.2} {:.2})'>",
-            CARD_PADDING_X, spark_plot_origin_y
+            "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
+            CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + spark_header_height, clip_spark
         );
         let _ = writeln!(
             svg,
-            "      <path d='{}' fill='{}'/>",
-            chart.fill_path, theme.accent_soft
+            "      <path d='{}' fill='{}' fill-opacity='{:.2}'/>",
+            chart.fill_path, theme.accent, OP_ACCENT_SOFT
         );
         let _ = writeln!(
             svg,
@@ -969,40 +1098,46 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         }
         let _ = writeln!(
             svg,
-            "      <line x1='0' y1='{:.2}' x2='{:.2}' y2='{:.2}' stroke='rgba(255,255,255,0.08)' stroke-width='1.4'/>",
-            chart.height,
+            "      <line x1='0' y1='{:.2}' x2='{:.2}' y2='{:.2}' stroke='{}' stroke-opacity='{:.2}' stroke-width='1'/>", // grid baseline
+            baseline_y,
             chart.width,
-            chart.height
+            baseline_y,
+            theme.card_stroke,
+            OP_GRID
         );
         let _ = writeln!(
             svg,
-            "      <text x='0' y='-14' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='13'>{}</text>",
-            theme.text_muted,
+            "      <text x='0' y='-14' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='13'>{}</text>",
+            theme.text_base,
+            OP_TEXT_MUTED,
             escape_text(&chart.min_label)
         );
         let _ = writeln!(
             svg,
-            "      <text x='{:.2}' y='-14' text-anchor='end' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='13'>{}</text>",
+            "      <text x='{:.2}' y='-14' text-anchor='end' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='13'>{}</text>",
             chart.width,
-            theme.text_muted,
+            theme.text_base,
+            OP_TEXT_MUTED,
             escape_text(&chart.max_label)
         );
         if let Some(label) = &chart.start_label {
             let _ = writeln!(
                 svg,
-                "      <text x='0' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='12'>{}</text>",
+                "      <text x='0' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='12'>{}</text>",
                 chart.height + 24.0,
-                theme.text_meta,
+                theme.text_base,
+                OP_TEXT_META,
                 escape_text(label)
             );
         }
         if let Some(label) = &chart.end_label {
             let _ = writeln!(
                 svg,
-                "      <text x='{:.2}' y='{:.2}' text-anchor='end' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='12'>{}</text>",
+                "      <text x='{:.2}' y='{:.2}' text-anchor='end' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='12'>{}</text>",
                 chart.width,
                 chart.height + 24.0,
-                theme.text_meta,
+                theme.text_base,
+                OP_TEXT_META,
                 escape_text(label)
             );
         }
@@ -1010,20 +1145,26 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     } else {
         let _ = writeln!(
             svg,
-            "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Need more clean PVT runs to plot a trend.</text>",
+            "    <text x='{:.2}' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='16'>Need more clean PVT runs to plot a trend.</text>",
             CARD_PADDING_X,
             spark_plot_origin_y + spark_plot_height / 2.0,
-            theme.text_meta
+            theme.text_base,
+            OP_TEXT_META
         );
     }
     let _ = writeln!(svg, "  </g>");
 
     // Bars card
-    let bars_plot_width = bars_rect.width - CARD_PADDING_X * 2.0;
-    let bars_plot_origin_y = CARD_PADDING_Y / 2.0 + bars_header_height;
-    let bars_title_baseline = CARD_PADDING_Y / 2.0 + bars_header_metrics.0.baseline;
+    let bars_plot_width = bars_inner.width;
+    let bars_plot_origin_y = bars_inner.y - bars_rect.y + bars_header_height;
+    let bars_title_baseline = (CARD_PADDING_Y / 2.0) + bars_header_metrics.0.baseline;
     let bars_subtitle_baseline = bars_title_baseline + bars_header_metrics.0.line_height + 6.0;
-    let bars_chart = build_bar_chart(&overview.bar_samples, bars_plot_width, bars_plot_height);
+    let bars_chart = build_bar_chart(
+        theme.accent,
+        &overview.bar_samples,
+        bars_plot_width,
+        bars_plot_height,
+    );
 
     let _ = writeln!(
         svg,
@@ -1032,22 +1173,24 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     );
     let _ = writeln!(
         svg,
-        "    <rect width='{:.2}' height='{:.2}' rx='{:.1}' fill='{}' stroke='{}'/>",
-        bars_rect.width, bars_rect.height, CARD_RADIUS, theme.card_fill, theme.card_stroke
+        "    <rect width='{:.2}' height='{:.2}' rx='{:.1}' fill='{}' fill-opacity='{:.2}' stroke='{}' stroke-opacity='{:.2}'/>",
+        bars_rect.width, bars_rect.height, CARD_RADIUS,
+        theme.card_fill, OP_CARD_FILL, theme.card_stroke, OP_CARD_STROKE
     );
     let _ = writeln!(
         svg,
-        "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='24' font-weight='600'>Lapses vs false starts</text>",
+        "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='{FONT_STACK}' font-size='24' font-weight='600'>Lapses vs false starts</text>",
         CARD_PADDING_X,
         bars_title_baseline,
         theme.text_primary
     );
     let _ = writeln!(
         svg,
-        "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Recent clean PVT sessions</text>",
+        "    <text x='{:.2}' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='16'>Recent clean PVT sessions</text>",
         CARD_PADDING_X,
         bars_subtitle_baseline,
-        theme.text_muted
+        theme.text_base,
+        OP_TEXT_MUTED
     );
 
     let legend_x = bars_rect.width - CARD_PADDING_X - 220.0;
@@ -1064,47 +1207,54 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     );
     let _ = writeln!(
         svg,
-        "      <text x='22' y='11' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='14'>Lapses ≥500 ms</text>",
-        theme.text_meta
+        "      <text x='22' y='11' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='14'>Lapses ≥500 ms</text>",
+        theme.text_base,
+        OP_TEXT_META
     );
     let _ = writeln!(
         svg,
-        "      <rect x='132' y='0' width='14' height='14' rx='4' fill='rgba(240,90,126,0.32)'/>"
+        "      <rect x='132' y='0' width='14' height='14' rx='4' fill='{}' fill-opacity='0.32'/>",
+        theme.accent
     );
     let _ = writeln!(
         svg,
-        "      <text x='156' y='11' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='14'>False starts</text>",
-        theme.text_meta
+        "      <text x='156' y='11' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='14'>False starts</text>",
+        theme.text_base,
+        OP_TEXT_META
     );
     let _ = writeln!(svg, "    </g>");
 
     if let Some(chart) = bars_chart {
+        let baseline_y = crisp(bars_plot_height);
         let _ = writeln!(
             svg,
-            "    <g transform='translate({:.2} {:.2})'>",
-            CARD_PADDING_X, bars_plot_origin_y
+            "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
+            CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + bars_header_height, clip_bars
         );
         let _ = writeln!(
             svg,
-            "      <line x1='0' y1='{:.2}' x2='{:.2}' y2='{:.2}' stroke='rgba(255,255,255,0.08)' stroke-width='1.4'/>",
-            chart.height,
+            "      <line x1='0' y1='{:.2}' x2='{:.2}' y2='{:.2}' stroke='{}' stroke-opacity='{:.2}' stroke-width='1'/>", // grid baseline
+            baseline_y,
             bars_plot_width,
-            chart.height
+            baseline_y,
+            theme.card_stroke,
+            OP_GRID
         );
         for bar in &chart.bars {
             let _ = writeln!(
                 svg,
-                "      <rect x='{:.2}' y='{:.2}' width='{:.2}' height='{:.2}' rx='4' fill='{}'/>",
-                bar.x, bar.y, bar.width, bar.height, bar.color
+                "      <rect x='{:.2}' y='{:.2}' width='{:.2}' height='{:.2}' rx='4' fill='{}' fill-opacity='{:.2}'/>",
+                                bar.x, bar.y, bar.width, bar.height, bar.color, bar.opacity
             );
         }
         for label in &chart.labels {
             let _ = writeln!(
                 svg,
-                "      <text x='{:.2}' y='{:.2}' text-anchor='middle' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='12'>{}</text>",
+                "      <text x='{:.2}' y='{:.2}' text-anchor='middle' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='12'>{}</text>",
                 label.x,
                 chart.height + 24.0,
-                theme.text_meta,
+                theme.text_base,
+                OP_TEXT_META,
                 escape_text(&label.text)
             );
         }
@@ -1112,15 +1262,15 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
     } else {
         let _ = writeln!(
             svg,
-            "    <text x='{:.2}' y='{:.2}' fill='{}' font-family='Inter, Segoe UI, sans-serif' font-size='16'>Complete clean PVT runs to compare lapses and false starts.</text>",
+            "    <text x='{:.2}' y='{:.2}' fill='{}' fill-opacity='{:.2}' font-family='{FONT_STACK}' font-size='16'>Complete clean PVT runs to compare lapses and false starts.</text>",
             CARD_PADDING_X,
             bars_plot_origin_y + bars_plot_height / 2.0,
-            theme.text_meta
+            theme.text_base,
+            OP_TEXT_META
         );
     }
     let _ = writeln!(svg, "  </g>");
     let _ = writeln!(svg, "</svg>");
-
     svg
 }
 
@@ -1134,15 +1284,11 @@ fn svg_to_png(svg: &str, width: u32, height: u32) -> Result<Vec<u8>, String> {
     let mut options = Options::default();
     {
         let db = options.fontdb_mut();
-        // System fallbacks first.
         db.load_system_fonts();
-        // If we compiled with embedded Inter fonts, register those bytes so
-        // resvg/usvg can resolve the same glyph metrics we used for layout.
         #[cfg(feature = "embed_inter")]
         {
-            db.load_font_data(include_bytes!("../../assets/Inter-Regular.ttf").to_vec());
-            db.load_font_data(include_bytes!("../../assets/Inter-SemiBold.ttf").to_vec());
-            db.load_font_data(include_bytes!("../../assets/Inter-Bold.ttf").to_vec());
+            db.load_font_data(include_bytes!("../../assets/Inter-Variable.ttf").to_vec());
+            db.load_font_data(include_bytes!("../../assets/Inter-Italic-Variable.ttf").to_vec());
         }
     }
 
@@ -1192,7 +1338,6 @@ impl SnapshotOverview {
             .filter(|record| record_is_clean(record))
             .collect();
         let clean_runs = clean_refs.len();
-
         if clean_refs.is_empty() {
             clean_refs = records.iter().collect();
         }
@@ -1303,6 +1448,7 @@ struct BarRect {
     width: f64,
     height: f64,
     color: &'static str,
+    opacity: f64,
 }
 
 struct BarLabel {
@@ -1325,37 +1471,30 @@ fn build_sparkline_chart(points: &[SparkPoint], width: f64, height: f64) -> Opti
     if points.len() < 2 {
         return None;
     }
-
     let mut min = f64::INFINITY;
     let mut max = f64::NEG_INFINITY;
-
     for point in points {
         if point.value.is_finite() {
             min = min.min(point.value);
             max = max.max(point.value);
         }
     }
-
     if !min.is_finite() || !max.is_finite() {
         return None;
     }
-
     let span = (max - min).max(1.0);
     let step = if points.len() > 1 {
         width / (points.len() - 1) as f64
     } else {
         width
     };
-
     let mut path = String::new();
     let mut fill_path = String::new();
     let mut markers = Vec::new();
-
     for (index, point) in points.iter().enumerate() {
         let x = step * index as f64;
         let norm = ((point.value - min) / span).clamp(0.0, 1.0);
         let y = height - norm * height;
-
         if index == 0 {
             let _ = write!(path, "M{:.2} {:.2}", x, y);
             let _ = write!(fill_path, "M{:.2} {:.2} L{:.2} {:.2}", x, height, x, y);
@@ -1363,19 +1502,15 @@ fn build_sparkline_chart(points: &[SparkPoint], width: f64, height: f64) -> Opti
             let _ = write!(path, " L{:.2} {:.2}", x, y);
             let _ = write!(fill_path, " L{:.2} {:.2}", x, y);
         }
-
         markers.push((x, y));
     }
-
     if let Some((last_x, _)) = markers.last() {
         let _ = write!(fill_path, " L{:.2} {:.2} Z", last_x, height);
     }
-
     let min_label = format!("MIN {} ms", min.round() as i64);
     let max_label = format!("MAX {} ms", max.round() as i64);
-    let start_label = points.first().map(|point| point.label.clone());
-    let end_label = points.last().map(|point| point.label.clone());
-
+    let start_label = points.first().map(|p| p.label.clone());
+    let end_label = points.last().map(|p| p.label.clone());
     Some(SparklineData {
         path,
         fill_path,
@@ -1389,11 +1524,15 @@ fn build_sparkline_chart(points: &[SparkPoint], width: f64, height: f64) -> Opti
     })
 }
 
-fn build_bar_chart(samples: &[BarSample], width: f64, height: f64) -> Option<BarChartData> {
+fn build_bar_chart(
+    accent: &'static str,
+    samples: &[BarSample],
+    width: f64,
+    height: f64,
+) -> Option<BarChartData> {
     if samples.is_empty() {
         return None;
     }
-
     let max_value = samples
         .iter()
         .map(|sample| sample.lapses.max(sample.false_starts))
@@ -1417,7 +1556,6 @@ fn build_bar_chart(samples: &[BarSample], width: f64, height: f64) -> Option<Bar
 
     for (index, sample) in samples.iter().enumerate() {
         let group_x = margin + index as f64 * (pair_width + gap);
-
         let lapses_height = if sample.lapses == 0 {
             0.0
         } else {
@@ -1428,29 +1566,27 @@ fn build_bar_chart(samples: &[BarSample], width: f64, height: f64) -> Option<Bar
         } else {
             (sample.false_starts as f64 / max_value) * height
         };
-
         let lapses_y = height - lapses_height;
         let false_y = height - false_height;
-
         bars.push(BarRect {
             x: group_x,
             y: lapses_y,
             width: bar_width,
             height: lapses_height,
-            color: "rgba(240,90,126,0.9)",
+            color: accent,
+            opacity: 0.90,
         });
-
         bars.push(BarRect {
             x: group_x + bar_width + 8.0,
             y: false_y,
             width: bar_width,
             height: false_height,
-            color: "rgba(240,90,126,0.32)",
+            color: accent,
+            opacity: 0.32,
         });
-
         labels.push(BarLabel {
             x: group_x + (pair_width / 2.0),
-            text: sample.label.clone(),
+            text: ellipsize(&sample.label, 10),
         });
     }
 
@@ -1475,4 +1611,5 @@ fn escape_text(input: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }

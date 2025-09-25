@@ -23,10 +23,9 @@
 //!   (e.g. `--features embed_inter`) to switch the export code to real
 //!   metrics, then remove the fallback once the transition is complete.
 //!
-//! Expected font file locations (relative to this file):
-//! - ../../assets/Inter-Regular.ttf
-//! - ../../assets/Inter-SemiBold.ttf
-//! - ../../assets/Inter-Bold.ttf
+//! Expected variable font file locations (relative to this file):
+//! - ../../assets/Inter-Variable.ttf
+//! - ../../assets/Inter-Italic-Variable.ttf (optional)
 //!
 //! Add a short NOTICE or LICENSE snippet for Inter under something like
 //! `ui/assets/licenses/INTER.txt` when you commit the font binaries.
@@ -108,18 +107,25 @@ impl Fonts {
     pub fn load() -> Self {
         #[cfg(feature = "embed_inter")]
         {
-            // If these paths are wrong or files are missing, compilation will fail early,
-            // which is desirable once the project officially depends on the fonts.
-            const REG_BYTES: &[u8] = include_bytes!("../../assets/Inter-Regular.ttf");
-            const SEMI_BYTES: &[u8] = include_bytes!("../../assets/Inter-SemiBold.ttf");
-            const BOLD_BYTES: &[u8] = include_bytes!("../../assets/Inter-Bold.ttf");
+            // Variable font approach:
+            // Inter now distributes a variable font that covers the full upright weight range.
+            // We load the upright variable file and (optionally) the italic file. For the
+            // purposes of vertical metrics, weight differences do not materially change
+            // ascender/descender we care about, so we point all weight requests to the same
+            // underlying font object.
+            const VAR_BYTES: &[u8] = include_bytes!("../../assets/Inter-Variable.ttf");
+            const VAR_ITALIC_BYTES: &[u8] =
+                include_bytes!("../../assets/Inter-Italic-Variable.ttf");
 
-            let regular = Font::from_bytes(REG_BYTES, Default::default())
-                .expect("Inter Regular font parse failed");
-            let semibold = Font::from_bytes(SEMI_BYTES, Default::default())
-                .expect("Inter SemiBold font parse failed");
-            let bold = Font::from_bytes(BOLD_BYTES, Default::default())
-                .expect("Inter Bold font parse failed");
+            let variable = Font::from_bytes(VAR_BYTES, Default::default())
+                .expect("Inter Variable font parse failed");
+            // Attempt to parse italic; if missing or invalid, reuse the upright variable.
+            let _italic = Font::from_bytes(VAR_ITALIC_BYTES, Default::default())
+                .unwrap_or_else(|_| variable.clone());
+
+            let regular = variable.clone();
+            let semibold = variable.clone();
+            let bold = variable;
 
             Fonts {
                 regular,
