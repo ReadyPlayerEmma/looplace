@@ -18,6 +18,8 @@ const CARD_RADIUS: f64 = 24.0;
 const CARD_PADDING_X: f64 = 32.0;
 const CARD_PADDING_Y: f64 = 28.0;
 const HIGHLIGHT_GAP: f64 = 20.0;
+const MIN_SPARK_PLOT_HEIGHT: f64 = 80.0;
+const MIN_BARS_PLOT_HEIGHT: f64 = 70.0;
 
 #[derive(Clone, Copy)]
 struct Rect {
@@ -696,6 +698,11 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         + CANVAS_GUTTER * 3.0;
 
     while CANVAS_MARGIN * 2.0 + total_height > EXPORT_CANVAS_HEIGHT {
+        if spark_plot_height <= MIN_SPARK_PLOT_HEIGHT + 0.1
+            && bars_plot_height <= MIN_BARS_PLOT_HEIGHT + 0.1
+        {
+            break;
+        }
         let overflow = CANVAS_MARGIN * 2.0 + total_height - EXPORT_CANVAS_HEIGHT;
         let plots_total = spark_plot_height + bars_plot_height;
         if plots_total <= 140.0 {
@@ -703,8 +710,9 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         }
         let reduction = overflow.min(plots_total - 140.0);
         let factor = reduction / plots_total;
-        spark_plot_height = (spark_plot_height - spark_plot_height * factor).max(80.0);
-        bars_plot_height = (bars_plot_height - bars_plot_height * factor).max(70.0);
+        spark_plot_height =
+            (spark_plot_height - spark_plot_height * factor).max(MIN_SPARK_PLOT_HEIGHT);
+        bars_plot_height = (bars_plot_height - bars_plot_height * factor).max(MIN_BARS_PLOT_HEIGHT);
 
         total_height = title_block_height
             + highlight_block_height
