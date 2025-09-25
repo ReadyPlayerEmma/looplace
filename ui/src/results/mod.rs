@@ -10,6 +10,8 @@ pub use charts::ResultsSparklines;
 mod export;
 pub use export::ResultsExportPanel;
 
+mod fonts;
+
 mod utils;
 pub(crate) use utils::*;
 

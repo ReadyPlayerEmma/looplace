@@ -11,7 +11,7 @@ use crate::results::{
 use time::OffsetDateTime;
 
 const EXPORT_CANVAS_WIDTH: f64 = 1200.0;
-const EXPORT_CANVAS_HEIGHT: f64 = 720.0;
+const EXPORT_CANVAS_HEIGHT: f64 = 900.0;
 const CANVAS_MARGIN: f64 = 64.0;
 const CANVAS_GUTTER: f64 = 28.0;
 const CARD_RADIUS: f64 = 24.0;
@@ -64,13 +64,35 @@ struct TextMetrics {
     baseline: f64,
 }
 
-fn text_metrics(size: f64) -> TextMetrics {
-    // Approximate line height and baseline ratios tuned for Inter-like fonts.
-    let line_height = size * 1.28;
-    let baseline = size * 0.92;
-    TextMetrics {
-        line_height,
-        baseline,
+// Unified text metrics: if the `embed_inter` feature is enabled we derive
+// baselines from the real embedded Inter fonts via the `fonts` module.
+// Otherwise we retain the legacy heuristic so contributors without the
+// font files still get a working (if less precise) export.
+fn text_metrics(size: f64, weight: &str) -> TextMetrics {
+    #[cfg(feature = "embed_inter")]
+    {
+        use crate::results::fonts::{measure, FontWeight};
+        let wt = match weight {
+            "bold" => FontWeight::Bold,
+            "semibold" | "semi" => FontWeight::SemiBold,
+            _ => FontWeight::Regular,
+        };
+        let m = measure(wt, size);
+        // Treat ascender as baseline position; reuse measured line height.
+        TextMetrics {
+            line_height: m.line_h,
+            baseline: m.asc,
+        }
+    }
+    #[cfg(not(feature = "embed_inter"))]
+    {
+        // Legacy heuristic (kept for compatibility without embedded fonts).
+        let line_height = size * 1.28;
+        let baseline = size * 0.92;
+        TextMetrics {
+            line_height,
+            baseline,
+        }
     }
 }
 
@@ -601,8 +623,8 @@ async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
         .map_err(|_| "Unable to create canvas")?
         .dyn_into()
         .map_err(|_| "Canvas cast failed")?;
-    canvas.set_width(1200);
-    canvas.set_height(720);
+    canvas.set_width(EXPORT_CANVAS_WIDTH);
+    canvas.set_height(EXPORT_CANVAS_HEIGHT);
 
     let context: CanvasRenderingContext2d = canvas
         .get_context("2d")
@@ -636,16 +658,20 @@ async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
 #[cfg(not(target_arch = "wasm32"))]
 fn build_png_desktop(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
     let svg_markup = svg_snapshot(records);
-    svg_to_png(&svg_markup, 1200, 720)
+    svg_to_png(
+        &svg_markup,
+        EXPORT_CANVAS_WIDTH as u32,
+        EXPORT_CANVAS_HEIGHT as u32,
+    )
 }
 
 fn svg_snapshot(records: &[SummaryRecord]) -> String {
     let overview = SnapshotOverview::build(records);
     let theme = Theme::default();
 
-    let title_metrics = text_metrics(56.0);
-    let subtitle_metrics = text_metrics(26.0);
-    let meta_metrics = text_metrics(18.0);
+    let title_metrics = text_metrics(56.0, "bold");
+    let subtitle_metrics = text_metrics(26.0, "regular");
+    let meta_metrics = text_metrics(18.0, "regular");
 
     let mut subtitle = match overview.total_runs {
         0 => "No runs saved yet".to_string(),
@@ -670,9 +696,9 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         title_block_height += meta_metrics.line_height + 8.0;
     }
 
-    let highlight_label_metrics = text_metrics(16.0);
-    let highlight_value_metrics = text_metrics(36.0);
-    let highlight_meta_metrics = text_metrics(15.0);
+    let highlight_label_metrics = text_metrics(16.0, "regular");
+    let highlight_value_metrics = text_metrics(36.0, "semibold");
+    let highlight_meta_metrics = text_metrics(15.0, "regular");
     let highlight_block_height = CARD_PADDING_Y
         + highlight_label_metrics.line_height
         + 6.0
@@ -681,12 +707,18 @@ fn svg_snapshot(records: &[SummaryRecord]) -> String {
         + highlight_meta_metrics.line_height
         + CARD_PADDING_Y / 2.0;
 
-    let spark_header_metrics = (text_metrics(24.0), text_metrics(16.0));
+    let spark_header_metrics = (
+        text_metrics(24.0, "semibold"),
+        text_metrics(16.0, "regular"),
+    );
     let mut spark_plot_height = 120.0;
     let spark_header_height =
         spark_header_metrics.0.line_height + 6.0 + spark_header_metrics.1.line_height;
 
-    let bars_header_metrics = (text_metrics(24.0), text_metrics(16.0));
+    let bars_header_metrics = (
+        text_metrics(24.0, "semibold"),
+        text_metrics(16.0, "regular"),
+    );
     let mut bars_plot_height = 90.0;
     let bars_header_height =
         bars_header_metrics.0.line_height + 6.0 + bars_header_metrics.1.line_height;
@@ -1100,7 +1132,19 @@ fn svg_to_png(svg: &str, width: u32, height: u32) -> Result<Vec<u8>, String> {
     use usvg::{Options, Tree};
 
     let mut options = Options::default();
-    options.fontdb_mut().load_system_fonts();
+    {
+        let db = options.fontdb_mut();
+        // System fallbacks first.
+        db.load_system_fonts();
+        // If we compiled with embedded Inter fonts, register those bytes so
+        // resvg/usvg can resolve the same glyph metrics we used for layout.
+        #[cfg(feature = "embed_inter")]
+        {
+            db.load_font_data(include_bytes!("../../assets/Inter-Regular.ttf").to_vec());
+            db.load_font_data(include_bytes!("../../assets/Inter-SemiBold.ttf").to_vec());
+            db.load_font_data(include_bytes!("../../assets/Inter-Bold.ttf").to_vec());
+        }
+    }
 
     let tree: Tree = Tree::from_data(svg.as_bytes(), &options)
         .map_err(|err| format!("SVG parse failed: {err:?}"))?;
