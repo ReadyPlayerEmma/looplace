@@ -3113,6 +3113,7 @@ dependencies = [
  "gloo-timers",
  "js-sys",
  "looplace-api",
+ "once_cell",
  "png 0.17.16",
  "rand 0.8.5",
  "resvg",

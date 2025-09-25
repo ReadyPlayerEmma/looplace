@@ -21,15 +21,29 @@ const CARD_PADDING_Y: f64 = 28.0;
 const HIGHLIGHT_GAP: f64 = 20.0;
 const MIN_SPARK_PLOT_HEIGHT: f64 = 80.0;
 const MIN_BARS_PLOT_HEIGHT: f64 = 70.0;
+const MAX_SPARK_PLOT_HEIGHT: f64 = 180.0;
+const MAX_BARS_PLOT_HEIGHT: f64 = 130.0;
 
 // Grid / stroke opacities
 const OP_GRID: f64 = 0.10;
 
-// Unique ID + pixel snapping helpers
-use std::sync::atomic::{AtomicU64, Ordering};
-fn uid(prefix: &str) -> String {
-    static COUNTER: AtomicU64 = AtomicU64::new(1);
-    format!("{prefix}-{}", COUNTER.fetch_add(1, Ordering::Relaxed))
+// Snapshot-scoped ID generator + pixel snapping helpers
+struct IdGen {
+    counter: u64,
+    prefix: String,
+}
+impl IdGen {
+    fn new(prefix: &str) -> Self {
+        Self {
+            counter: 1,
+            prefix: prefix.to_string(),
+        }
+    }
+    fn next(&mut self, stem: &str) -> String {
+        let id = self.counter;
+        self.counter += 1;
+        format!("{}-{}-{id}", self.prefix, stem)
+    }
 }
 fn crisp(v: f64) -> f64 {
     v.floor() + 0.5
@@ -53,6 +67,10 @@ const OP_TEXT_MUTED: f64 = 0.62;
 const OP_TEXT_META: f64 = 0.55;
 const OP_ACCENT_SOFT: f64 = 0.12;
 const FONT_STACK: &str = "Inter, Segoe UI, sans-serif";
+static INTER_B64: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(|| {
+    base64::engine::general_purpose::STANDARD
+        .encode(include_bytes!("../../assets/Inter-Variable.ttf"))
+});
 
 #[derive(Clone, Copy)]
 struct Rect {
@@ -397,106 +415,105 @@ async fn perform_png_export(records: Vec<SummaryRecord>) -> Result<String, Strin
 }
 
 fn build_csv(records: &[SummaryRecord]) -> String {
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(records.len() + 1);
-    rows.push(
-        [
-            "task",
-            "created_at",
-            "platform",
-            "tz",
-            "median_rt_ms",
-            "mean_rt_ms",
-            "lapses_500ms",
-            "false_starts",
-            "slope_ms_per_min",
-            "accuracy",
-            "d_prime",
-            "criterion",
-            "hits",
-            "misses",
-            "false_alarms",
-            "correct_rejections",
-            "notes",
-            "qc_summary",
-            "qc_focus_lost",
-            "qc_visibility_blur",
-            "qc_min_trials_met",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect(),
-    );
-
-    for record in records {
-        let mut row = vec![
-            record.task.as_str().to_string(),
-            record.created_at.clone(),
-            record.client.platform.clone(),
-            record.client.tz.clone(),
-        ];
-
-        let mut pvt_fields = vec![String::new(); 5];
-        let mut nback_fields = vec![String::new(); 6];
-
-        match record.task.as_str() {
-            "pvt" => {
-                if let Some(metrics) = parse_pvt_metrics(record) {
-                    pvt_fields = vec![
-                        metrics.median_rt_ms.to_string(),
-                        metrics.mean_rt_ms.to_string(),
-                        metrics.lapses_ge_500ms.to_string(),
-                        metrics.false_starts.to_string(),
-                        metrics.time_on_task_slope_ms_per_min.to_string(),
-                    ];
-                }
-            }
-            "nback2" => {
-                if let Some(metrics) = parse_nback_metrics(record) {
-                    nback_fields = vec![
-                        metrics.accuracy.to_string(),
-                        metrics.d_prime.to_string(),
-                        metrics.criterion.to_string(),
-                        metrics.hits.to_string(),
-                        metrics.misses.to_string(),
-                        metrics.false_alarms.to_string(),
-                        metrics.correct_rejections.to_string(),
-                    ];
-                }
-            }
-            _ => {}
-        }
-
-        if nback_fields.len() == 6 {
-            nback_fields.insert(3, String::new());
-        }
-
-        let notes = record.notes.clone().unwrap_or_default();
-        let qc = qc_summary(record);
-        let qc_focus = record.qc.focus_lost_events.to_string();
-        let qc_blur = record.qc.visibility_blur_events.to_string();
-        let qc_min = record.qc.min_trials_met.to_string();
-
-        row.extend(pvt_fields);
-        row.extend(nback_fields);
-        row.push(notes);
-        row.push(qc);
-        row.push(qc_focus);
-        row.push(qc_blur);
-        row.push(qc_min);
-        rows.push(row);
-    }
-
-    let mut csv = String::new();
-    for row in rows {
-        let line = row
-            .into_iter()
+    // Fixed schema: 4 core + 5 PVT + 7 NBack + 5 tail = 21 columns
+    let header = [
+        "task",
+        "created_at",
+        "platform",
+        "tz",
+        // PVT metrics
+        "median_rt_ms",
+        "mean_rt_ms",
+        "lapses_500ms",
+        "false_starts",
+        "slope_ms_per_min",
+        // N-back metrics
+        "accuracy",
+        "d_prime",
+        "criterion",
+        "hits",
+        "misses",
+        "false_alarms",
+        "correct_rejections",
+        // General / QC
+        "notes",
+        "qc_summary",
+        "qc_focus_lost",
+        "qc_visibility_blur",
+        "qc_min_trials_met",
+    ];
+    let mut out = String::new();
+    out.push_str(
+        &header
+            .iter()
+            .map(|c| c.to_string())
             .map(|f| escape_csv(&f))
             .collect::<Vec<_>>()
-            .join(",");
-        csv.push_str(&line);
-        csv.push('\n');
+            .join(","),
+    );
+    out.push('\n');
+
+    for record in records {
+        let mut row: Vec<String> = Vec::with_capacity(header.len());
+
+        // Core
+        row.push(record.task.clone());
+        row.push(record.created_at.clone());
+        row.push(record.client.platform.clone());
+        row.push(record.client.tz.clone());
+
+        // PVT (5)
+        if record.task == "pvt" {
+            if let Some(m) = parse_pvt_metrics(record) {
+                row.extend([
+                    m.median_rt_ms.to_string(),
+                    m.mean_rt_ms.to_string(),
+                    m.lapses_ge_500ms.to_string(),
+                    m.false_starts.to_string(),
+                    m.time_on_task_slope_ms_per_min.to_string(),
+                ]);
+            } else {
+                row.extend(std::iter::repeat(String::new()).take(5));
+            }
+        } else {
+            row.extend(std::iter::repeat(String::new()).take(5));
+        }
+
+        // NBack (7)
+        if record.task == "nback2" {
+            if let Some(m) = parse_nback_metrics(record) {
+                row.extend([
+                    m.accuracy.to_string(),
+                    m.d_prime.to_string(),
+                    m.criterion.to_string(),
+                    m.hits.to_string(),
+                    m.misses.to_string(),
+                    m.false_alarms.to_string(),
+                    m.correct_rejections.to_string(),
+                ]);
+            } else {
+                row.extend(std::iter::repeat(String::new()).take(7));
+            }
+        } else {
+            row.extend(std::iter::repeat(String::new()).take(7));
+        }
+
+        // Tail (5)
+        row.push(record.notes.clone().unwrap_or_default());
+        row.push(qc_summary(record));
+        row.push(record.qc.focus_lost_events.to_string());
+        row.push(record.qc.visibility_blur_events.to_string());
+        row.push(record.qc.min_trials_met.to_string());
+
+        out.push_str(
+            &row.into_iter()
+                .map(|f| escape_csv(&f))
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        out.push('\n');
     }
-    csv
+    out
 }
 
 fn escape_csv(value: &str) -> String {
@@ -631,70 +648,55 @@ async fn build_png_snapshot(records: &[SummaryRecord]) -> Result<Vec<u8>, String
 async fn build_png_web(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
     use wasm_bindgen::{JsCast, JsValue};
     use wasm_bindgen_futures::JsFuture;
-    use web_sys::{
-        Blob, BlobPropertyBag, CanvasRenderingContext2d, HtmlCanvasElement, HtmlImageElement, Url,
-    };
+    use web_sys::{window, Blob, BlobPropertyBag, HtmlCanvasElement, Url};
 
     let svg_markup = svg_snapshot(records);
+
+    // Build an SVG blob URL
     let mut opts = BlobPropertyBag::new();
     opts.type_("image/svg+xml");
-    let mut parts = js_sys::Array::new();
-    parts.push(&JsValue::from_str(&svg_markup));
-    let blob = Blob::new_with_str_sequence_and_options(&parts, &opts)
-        .map_err(|_| "Unable to build SVG blob".to_string())?;
-    let url = Url::create_object_url_with_blob(&blob)
-        .map_err(|_| "Unable to create SVG URL".to_string())?;
+    let arr = js_sys::Array::of1(&JsValue::from_str(&svg_markup));
+    let blob = Blob::new_with_str_sequence_and_options(&arr, &opts)
+        .map_err(|_| "Unable to build SVG blob")?;
+    let url = Url::create_object_url_with_blob(&blob).map_err(|_| "Unable to create SVG URL")?;
 
-    let document = web_sys::window()
-        .and_then(|w| w.document())
-        .ok_or("Document unavailable")?;
+    let win = window().ok_or("window unavailable")?;
+    let dpr = win.device_pixel_ratio();
+    let doc = win.document().ok_or("document unavailable")?;
 
-    let canvas: HtmlCanvasElement = document
+    // Canvas sized for device pixel ratio
+    let canvas: HtmlCanvasElement = doc
         .create_element("canvas")
-        .map_err(|_| "Unable to create canvas")?
+        .map_err(|_| "Create canvas failed")?
         .dyn_into()
         .map_err(|_| "Canvas cast failed")?;
     canvas.set_width((EXPORT_CANVAS_WIDTH * dpr) as u32);
     canvas.set_height((EXPORT_CANVAS_HEIGHT * dpr) as u32);
-    // Optional: keep CSS size unscaled (if canvas added to DOM later)
-    canvas
-        .style()
-        .set_property("width", &format!("{}px", EXPORT_CANVAS_WIDTH))
-        .ok();
-    canvas
-        .style()
-        .set_property("height", &format!("{}px", EXPORT_CANVAS_HEIGHT))
-        .ok();
 
-    let context: CanvasRenderingContext2d = canvas
-        .get_context("2d")
-        .map_err(|_| "Canvas context unavailable")?
-        .ok_or("Canvas context missing")?
-        .dyn_into()
-        .map_err(|_| "Context cast failed")?;
-
-    let image = HtmlImageElement::new().map_err(|_| "Unable to create image")?;
-    let decode = image.decode();
-    image.set_src(&url);
-    JsFuture::from(decode)
+    // Decode the SVG to an ImageBitmap (faster, avoids layout)
+    let bitmap_promise = win
+        .create_image_bitmap_with_src(&JsValue::from_str(&url))
+        .map_err(|_| "createImageBitmap unsupported")?;
+    let bitmap = JsFuture::from(bitmap_promise)
         .await
-        .map_err(|_| "Image decode failed")?;
+        .map_err(|_| "Bitmap decode failed")?;
 
-    context
-        .scale(dpr, dpr)
-        .map_err(|_| "Unable to scale context")?;
-    context
-        .draw_image_with_html_image_element(&image, 0.0, 0.0)
-        .map_err(|_| "Unable to draw image")?;
+    let ctx = canvas
+        .get_context("2d")
+        .map_err(|_| "2D context unavailable")?
+        .ok_or("2D context missing")?
+        .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        .map_err(|_| "Context cast failed")?;
+    ctx.scale(dpr, dpr).map_err(|_| "Scale failed")?;
+    let _ = ctx.draw_image_with_image_bitmap(&bitmap.unchecked_into(), 0.0, 0.0);
 
     let data_url = canvas
         .to_data_url_with_type("image/png")
-        .map_err(|_| "Unable to serialise canvas")?;
+        .map_err(|_| "Canvas toDataURL failed")?;
     Url::revoke_object_url(&url).ok();
 
-    let bytes = base64::decode(data_url.split(',').nth(1).ok_or("Malformed data URL")?)
-        .map_err(|_| "PNG decode failed")?;
-    Ok(bytes)
+    let b64 = data_url.split(',').nth(1).ok_or("Malformed data URL")?;
+    base64::decode(b64).map_err(|_| "PNG decode failed")
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -722,6 +724,9 @@ fn fit_plots(
     let target = (avail_height - static_height).max(min_spark + min_bars);
     let mut current = *spark + *bars;
     if current <= target {
+        // Still clamp to maximums for safety
+        *spark = spark.min(MAX_SPARK_PLOT_HEIGHT);
+        *bars = bars.min(MAX_BARS_PLOT_HEIGHT);
         return;
     }
 
@@ -745,13 +750,15 @@ fn fit_plots(
         }
     }
 
-    // Guard rails
+    // Guard rails + ceilings
     if *spark < min_spark {
         *spark = min_spark;
     }
     if *bars < min_bars {
         *bars = min_bars;
     }
+    *spark = spark.min(MAX_SPARK_PLOT_HEIGHT);
+    *bars = bars.min(MAX_BARS_PLOT_HEIGHT);
 }
 
 pub fn svg_snapshot(records: &[SummaryRecord]) -> String {
@@ -898,16 +905,16 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
     let mut svg = String::with_capacity(48_000);
     // scale supplied by caller (1.0 normal, 2.0 for @2x, etc.)
 
-    // Precompute clip IDs
-    let clip_spark = uid("spark");
-    let clip_bars = uid("bars");
+    // Snapshot-scoped IDs
+    let mut ids = IdGen::new("llsnap");
+    let clip_spark = ids.next("spark");
+    let clip_bars = ids.next("bars");
 
     // We already have inner rects; derive plot widths/heights before defs so clipPaths can live in <defs>
     let spark_plot_width = spark_inner.width;
     let bars_plot_width = bars_inner.width;
 
-    let inter_bytes = include_bytes!("../../assets/Inter-Variable.ttf");
-    let inter_b64 = base64::engine::general_purpose::STANDARD.encode(inter_bytes);
+    let inter_b64 = &*INTER_B64;
 
     let pixel_w = (EXPORT_CANVAS_WIDTH * scale).round();
     let pixel_h = (EXPORT_CANVAS_HEIGHT * scale).round();
@@ -1075,7 +1082,7 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
         let baseline_y = crisp(chart.height);
         let _ = writeln!(
             svg,
-            "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
+            "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' aria-roledescription='chart' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
             CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + spark_header_height, clip_spark
         );
         let _ = writeln!(
@@ -1228,7 +1235,7 @@ fn svg_snapshot_with_scale(records: &[SummaryRecord], scale: f64) -> String {
         let baseline_y = crisp(bars_plot_height);
         let _ = writeln!(
             svg,
-            "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
+            "    <g transform='translate({:.2} {:.2})' clip-path='url(#{})' aria-roledescription='chart' shape-rendering='crispEdges' vector-effect='non-scaling-stroke'>",
             CARD_PADDING_X, (CARD_PADDING_Y / 2.0) + bars_header_height, clip_bars
         );
         let _ = writeln!(
@@ -1569,16 +1576,16 @@ fn build_bar_chart(
         let lapses_y = height - lapses_height;
         let false_y = height - false_height;
         bars.push(BarRect {
-            x: group_x,
-            y: lapses_y,
+            x: crisp(group_x),
+            y: crisp(lapses_y),
             width: bar_width,
             height: lapses_height,
             color: accent,
             opacity: 0.90,
         });
         bars.push(BarRect {
-            x: group_x + bar_width + 8.0,
-            y: false_y,
+            x: crisp(group_x + bar_width + 8.0),
+            y: crisp(false_y),
             width: bar_width,
             height: false_height,
             color: accent,
