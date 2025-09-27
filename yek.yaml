@@ -1,0 +1,38 @@
+# Add patterns to ignore (in addition to .gitignore)
+ignore_patterns:
+  - "scripts/**"
+  - "mobile/**"
+  - "web/**"
+  - "AGENTS.md"
+  - "CONTRIBUTING.md"
+  - "LICENSE"
+  - "TODO.md"
+
+# Configure Git-based priority boost (optional)
+git_boost_max: 50 # Maximum score boost based on Git history (default: 100)
+
+# Define priority rules for processing order
+# Higher scores are processed first
+priority_rules:
+  - score: 150
+    pattern: "README.md"
+  - score: 100
+    pattern: "^ui/"
+  - score: 90
+    pattern: "^desktop/"
+  - score: 80
+    pattern: "^.*.md"
+  - score: 5 # Low priority for all other files
+    pattern: ".*"
+
+# Output configuration
+tokens: "50K" # Token limit
+tree_header: true # Include directory tree at start
+
+# Define output directory
+output_dir: /tmp/yek
+output_name: yek-output-looplace.txt
+
+# Define output template.
+# FILE_PATH and FILE_CONTENT are expected to be present in the template.
+output_template: "FILE_PATH\n\nFILE_CONTENT"
