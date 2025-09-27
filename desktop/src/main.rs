@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use dioxus::desktop::Config;
 use dioxus::prelude::*;
 
-use ui::components::Navbar;
+use ui::components::app_navbar::{register_nav, NavBuilder};
+use ui::components::AppNavbar;
+
 use ui::views::{Home, NBack2, Pvt, Results};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
@@ -31,8 +33,12 @@ const MAIN_CSS_INLINE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "
 fn main() {
     let resource_dir = resolve_resource_dir();
 
+    // Increase default window size (~20% larger than a common 960x600 baseline → 1152x720).
+    // We extend the existing Config with a window builder specifying the inner size.
     LaunchBuilder::desktop()
-        .with_cfg(Config::new().with_resource_directory(resource_dir))
+        .with_cfg(
+            Config::new().with_resource_directory(resource_dir), // Removed explicit window sizing (was causing build/type issues). Use default size for now.
+        )
         .launch(App);
 }
 
@@ -41,9 +47,31 @@ fn main() {
     LaunchBuilder::server().launch(App);
 }
 
+fn nav_home(label: &str) -> Element {
+    rsx!(Link { class: "navbar__link", to: Route::Home {}, "{label}" })
+}
+fn nav_pvt(label: &str) -> Element {
+    rsx!(Link { class: "navbar__link", to: Route::Pvt {}, "{label}" })
+}
+fn nav_nback(label: &str) -> Element {
+    rsx!(Link { class: "navbar__link", to: Route::NBack2 {}, "{label}" })
+}
+fn nav_results(label: &str) -> Element {
+    rsx!(Link { class: "navbar__link", to: Route::Results {}, "{label}" })
+}
+
 #[component]
 fn App() -> Element {
-    // Build cool things ✌️
+    {
+        ui::i18n::init();
+        // Register localized navigation builder (desktop)
+        register_nav(NavBuilder {
+            home: nav_home,
+            pvt: nav_pvt,
+            nback: nav_nback,
+            results: nav_results,
+        });
+    } // Build cool things ✌️
 
     rsx! {
         // Global app resources
@@ -79,41 +107,7 @@ fn resolve_resource_dir() -> PathBuf {
 #[component]
 fn DesktopNavbar() -> Element {
     rsx! {
-        Navbar {
-            div {
-                class: "navbar__brand",
-                Link {
-                    class: "navbar__brand-link",
-                    to: Route::Home {},
-                    span { class: "navbar__brand-spark", aria_hidden: "true" }
-                    span { class: "navbar__brand-mark", "Looplace" }
-                }
-                span { class: "navbar__brand-subtitle", "Track focus with compassion" }
-            }
-            nav {
-                class: "navbar__links",
-                Link {
-                    class: "navbar__link",
-                    to: Route::Home {},
-                    "Home"
-                }
-                Link {
-                    class: "navbar__link",
-                    to: Route::Pvt {},
-                    "PVT"
-                }
-                Link {
-                    class: "navbar__link",
-                    to: Route::NBack2 {},
-                    "2-back"
-                }
-                Link {
-                    class: "navbar__link",
-                    to: Route::Results {},
-                    "Results"
-                }
-            }
-        }
+        AppNavbar { }
 
         Outlet::<Route> {}
     }

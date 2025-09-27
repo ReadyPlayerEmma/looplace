@@ -1,0 +1,14 @@
+# Localization configuration for looplace-ui
+# This file is used by i18n-embed to discover Fluent FTL bundles.
+# Add additional locales as: ui/i18n/<lang-tag>/looplace-ui.ftl
+#
+# Fallback language
+fallback_language = "en-US"
+
+[fluent]
+# Directory (relative to this file) containing locale subdirectories.
+assets_dir = "i18n"
+domain = "looplace-ui"
+
+# Notes / future options:
+# default_language = "en-US"   # Normally matches fallback; define separately only if needed.

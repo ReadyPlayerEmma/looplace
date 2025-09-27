@@ -8,18 +8,6 @@ const NAVBAR_CSS_INLINE: &str = include_str!(concat!(
 
 #[component]
 pub fn Navbar(children: Element) -> Element {
-    rsx! {
-        document::Link { rel: "stylesheet", href: NAVBAR_CSS }
-        if cfg!(all(not(debug_assertions), not(target_arch = "wasm32"))) {
-            document::Style { "{NAVBAR_CSS_INLINE}" }
-        }
-
-        header {
-            id: "navbar",
-            div {
-                class: "navbar__inner",
-                {children}
-            }
-        }
-    }
+    // Legacy passthrough (kept for compatibility). Just forwards children.
+    rsx! { {children} }
 }
