@@ -11,7 +11,6 @@ nav-home = Accueil
 nav-pvt = PVT
 nav-nback = 2-back
 nav-results = Résultats
-nav-language-label = Langue
 
 ## Brand & general
 tagline = Suivre l’attention avec compassion
@@ -125,44 +124,3 @@ nback-metric-mean-hit-rt = RT moyenne succès
 nback-metric-hit-rt-p10p90 = RT succès p10/p90
 # $message – texte d'erreur
 nback-error-generic = ⚠️ { $message }
-
-## Commun (étiquettes partagées)
-common-cancel = Annuler
-common-progress = Progression
-
-## Guidance PVT (textes d’état dynamiques)
-pvt-guidance-idle = Appuyez sur démarrer puis attendez que le compteur de millisecondes apparaisse.
-pvt-guidance-waiting = Restez prêt… le compteur apparaîtra bientôt.
-pvt-guidance-active = Touchez ou appuyez sur espace dès que le compteur apparaît.
-pvt-guidance-completed = Session terminée. Redémarrez quand vous voulez.
-pvt-guidance-aborted = Session annulée. Relancez pour réessayer.
-
-## N-Back libellés supplémentaires
-nback-get-ready = Préparez-vous
-nback-mode-practice = Entraînement
-nback-mode-main = Session principale
-# Libellé accessibilité pour la zone de réponse
-nback-aria-respond = Répondre à la lettre actuelle
-
-## Page d’accueil
-home-title = Looplace
-home-tagline-short = Petites boucles • esprit clair.
-home-intro-1 = Suivez la vigilance psychomotrice et la mémoire de travail avec des moteurs partagés qui s’exécutent partout.
-home-feature-pvt = Chronométrage PVT précis avec métriques locales
-home-feature-nback = Sessions de mémoire de travail 2-back
-home-feature-local = Résultats stockés localement avec options d’export
-home-cta = Choisissez une tâche pour commencer.
-
-## Page PVT
-page-pvt-title = Tâche de Vigilance Psychomotrice
-page-pvt-intro = Lancez un court bloc de vigilance pour capturer temps de réaction et lapses.
-
-## Page N-Back
-page-nback-title = Mémoire de travail 2-back
-page-nback-intro = Commencez par un court échauffement guidé puis suivez le flux 2-back — répondez quand la lettre correspond à celle d’il y a deux essais pour capturer sensibilité (d′), biais de réponse et tendances de temps de réaction.
-
-## Page Résultats (supplément)
-results-page-intro = Consultez les résumés des sessions récentes, inspectez les contrôles de qualité et exportez les données pour une analyse approfondie.
-results-refresh = Actualiser
-results-empty = Aucune session enregistrée. Les sessions complétées apparaîtront après avoir terminé une tâche.
-results-error-prefix = ⚠️

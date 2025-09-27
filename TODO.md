@@ -215,3 +215,4 @@ Toggle via `?debug`: last RTs, RAF delta, visibility count, seed, platform info.
 * When we add backend later, we’ll just wire `save_summary`/`get_summaries` server functions without touching the views.
 * Log papercuts (focus drift, layering bugs, etc.) while they’re fresh so they don’t stack up and sap the fun from the project.
 * CI now covers macOS Apple Silicon bundles and Windows x64 zips; expand to Linux or additional Windows packaging when needed.
+* TODO: Language switch currently only forces a full content update reliably when triggered from Home; switching locale while on PVT / N-Back / Results often needs a route change to reflect. Unify remount (move keyed wrapper to shared layout or introduce global locale hook) before next release.

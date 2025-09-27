@@ -6,6 +6,11 @@ use crate::results::{
 
 #[component]
 pub fn Results() -> Element {
+    // Subscribe to global language code (if provided) so this view re-renders
+    // when the user switches locale while viewing Results.
+    let _lang_code: Option<Signal<String>> = try_use_context::<Signal<String>>();
+    let _lang_marker = _lang_code.as_ref().map(|s| s()).unwrap_or_default();
+
     let results_state = use_signal(ResultsState::load);
     let mut selected_id = use_signal(|| Option::<String>::None);
 
@@ -42,25 +47,27 @@ pub fn Results() -> Element {
     };
 
     rsx! {
+        // Hidden marker node ensures reactive dependency on language signal.
+        div { style: "display:none", "{_lang_marker}" }
         section { class: "page page-results",
             div { class: "results__header",
-                h1 { "Results" }
+                h1 { {crate::t!("results-title")} }
                 button {
                     r#type: "button",
                     class: "button button--ghost",
                     onclick: refresh,
-                    "Refresh"
+                    {crate::t!("results-refresh")}
                 }
             }
             p { class: "results__intro",
-                "Review summaries from recent runs, inspect quality checks, and export data for deeper analysis."
+                {crate::t!("results-page-intro")}
             }
 
             if let Some(err) = snapshot.error.clone() {
-                div { class: "results__alert results__alert--error", "⚠️ {err}" }
+                div { class: "results__alert results__alert--error", {crate::t!("results-error-prefix")} " {err}" }
             }
             if runs_count == 0 && snapshot.error.is_none() {
-                div { class: "results__alert", "No runs recorded yet. Completed sessions will appear after you finish a task." }
+                div { class: "results__alert", {crate::t!("results-empty")} }
             }
 
             div { class: "results__panels",

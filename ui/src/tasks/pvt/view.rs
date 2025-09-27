@@ -19,6 +19,9 @@ const FEEDBACK_HOLD_MS: u64 = 900;
 
 #[component]
 pub fn PvtView() -> Element {
+    // Subscribe to global language signal so instructional subsection re-renders on locale switch.
+    let _lang_code: Option<Signal<String>> = try_use_context::<Signal<String>>();
+    let _lang_marker = _lang_code.as_ref().map(|s| s()).unwrap_or_default();
     let engine = use_signal(PvtEngine::default);
     let qc_flags = use_signal(QualityFlags::pristine);
     let last_metrics = use_signal(|| Option::<PvtMetrics>::None);
@@ -256,14 +259,12 @@ pub fn PvtView() -> Element {
 
     let guidance_text = match engine_snapshot.state {
         EngineState::Idle => {
-            "Press start, then wait for the milliseconds counter to appear.".to_string()
+            crate::t!("pvt-guidance-idle")
         }
-        EngineState::Waiting { .. } => "Hold steady… the counter will appear soon.".to_string(),
-        EngineState::StimulusActive { .. } => {
-            "Tap or press space the moment the counter appears.".to_string()
-        }
-        EngineState::Completed => "Session complete. Start again when ready.".to_string(),
-        EngineState::Aborted => "Run cancelled. Start to retry.".to_string(),
+        EngineState::Waiting { .. } => crate::t!("pvt-guidance-waiting"),
+        EngineState::StimulusActive { .. } => crate::t!("pvt-guidance-active"),
+        EngineState::Completed => crate::t!("pvt-guidance-completed"),
+        EngineState::Aborted => crate::t!("pvt-guidance-aborted"),
     };
 
     let indicator_value = indicator_text();
@@ -282,7 +283,7 @@ pub fn PvtView() -> Element {
                     button {
                         class: "button button--ghost button--compact task-canvas__cancel",
                         onclick: move |_| send_event(PvtEvent::Abort),
-                        "Cancel"
+                        {crate::t!("common-cancel")}
                     }
 
                     button {
@@ -308,25 +309,27 @@ pub fn PvtView() -> Element {
                             }
                         },
 
-                        div { class: indicator_class, "{indicator_value}" }
+                        div { class: indicator_class, {indicator_value} }
                     }
 
-                    div { class: "task-guidance task-guidance--overlay", "{guidance_text}" }
+                    div { class: "task-guidance task-guidance--overlay", {guidance_text} }
 
                     div { class: "task-progress task-progress--overlay",
-                        span { "Progress" }
+                        span { {crate::t!("pvt-progress-label")} }
                         span { class: "task-progress__value", "{trial_progress}/{total_target}" }
                     }
                 }
             } else {
                 section { class: "task-card task-card--instructions task-pvt__prelude",
+                    // Hidden i18n marker to force re-render of instruction copy when locale changes
+                    div { style: "display:none", "{_lang_marker}" }
                     details { class: "task-instructions",
-                        summary { "How the task works" }
+                        summary { {crate::t!("pvt-how-summary")} }
                         ul { class: "task-instructions__list",
-                            li { "Wait for the milliseconds counter to appear in the centre." }
-                            li { "Tap or press space as soon as you see it—speed and consistency both matter." }
-                            li { "Runs use 2–10 s jitter; false starts add delay, lapses ≥500 ms are flagged." }
-                            li { "Each session targets {total_target} valid reactions." }
+                            li { {crate::t!("pvt-how-step-wait")} }
+                            li { {crate::t!("pvt-how-step-respond")} }
+                            li { {crate::t!("pvt-how-step-jitter")} }
+                            li { {crate::t!("pvt-how-step-target", trials = total_target)} }
                         }
                     }
 
@@ -335,9 +338,9 @@ pub fn PvtView() -> Element {
                             r#type: "button",
                             class: "button button--primary",
                             onclick: move |_| send_event(PvtEvent::Start),
-                            "Start"
+                            {crate::t!("pvt-start")}
                         }
-                        span { class: "task-guidance", "{guidance_text}" }
+                        span { class: "task-guidance", {guidance_text} }
                     }
                 }
             }
@@ -345,31 +348,31 @@ pub fn PvtView() -> Element {
             if !is_running {
                 if let Some(metrics) = latest_metrics {
                     section { class: "task-card task-metrics",
-                        h3 { "Last session" }
+                        h3 { {crate::t!("pvt-last-session")} }
                         ul { class: "metrics-grid",
-                            li { "Median RT: {format::format_ms(metrics.median_rt_ms)}" }
-                            li { "Mean RT: {format::format_ms(metrics.mean_rt_ms)}" }
-                            li { "SD RT: {format::format_ms(metrics.sd_rt_ms)}" }
-                            li { "P10: {format::format_ms(metrics.p10_rt_ms)}" }
-                            li { "P90: {format::format_ms(metrics.p90_rt_ms)}" }
-                            li { "Lapses ≥500 ms: {metrics.lapses_ge_500ms}" }
-                            li { "Minor lapses 355–499 ms: {metrics.minor_lapses_355_499ms}" }
-                            li { "False starts: {metrics.false_starts}" }
-                            li { "Slope: {format::format_slope(metrics.time_on_task_slope_ms_per_min)}" }
+                            li { {crate::t!("pvt-metric-median-rt")} ": " {format::format_ms(metrics.median_rt_ms)} }
+                            li { {crate::t!("pvt-metric-mean-rt")} ": " {format::format_ms(metrics.mean_rt_ms)} }
+                            li { {crate::t!("pvt-metric-sd-rt")} ": " {format::format_ms(metrics.sd_rt_ms)} }
+                            li { {crate::t!("pvt-metric-p10")} ": " {format::format_ms(metrics.p10_rt_ms)} }
+                            li { {crate::t!("pvt-metric-p90")} ": " {format::format_ms(metrics.p90_rt_ms)} }
+                            li { {crate::t!("pvt-metric-lapses")} ": " {metrics.lapses_ge_500ms.to_string()} }
+                            li { {crate::t!("pvt-metric-minor-lapses")} ": " {metrics.minor_lapses_355_499ms.to_string()} }
+                            li { {crate::t!("pvt-metric-false-starts")} ": " {metrics.false_starts.to_string()} }
+                            li { {crate::t!("pvt-metric-slope")} ": " {format::format_slope(metrics.time_on_task_slope_ms_per_min)} }
                             li {
-                                "Min trials met: "
-                                if metrics.meets_min_trial_requirement { "Yes" } else { "No" }
+                                {crate::t!("pvt-metric-min-trials-met")} ": "
+                                if metrics.meets_min_trial_requirement { {crate::t!("pvt-yes")} } else { {crate::t!("pvt-no")} }
                             }
                         }
                     }
                 } else {
                     section { class: "task-card task-metrics task-metrics--placeholder",
-                        p { "Metrics will appear after the first completed run." }
+                        p { {crate::t!("pvt-metrics-placeholder")} }
                     }
                 }
 
                 if let Some(err) = error_message {
-                    div { class: "task-error", "⚠️ {err}" }
+                    div { class: "task-error", {crate::t!("pvt-error-generic", message = err)} }
                 }
             }
         }

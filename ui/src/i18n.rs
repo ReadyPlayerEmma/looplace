@@ -1,21 +1,4 @@
 //! Internationalization (i18n) support for `looplace-ui`.
-//! NOTE: Fluent domain resolution inside the `fl!` macro has shown inconsistent behavior
-//! across versions (hyphenated vs underscore normalization of the crate name).
-//! For stability we are TEMPORARILY keeping both filename variants per locale:
-//!   • Hyphen form (canonical going forward): `i18n/<lang-tag>/looplace-ui.ftl`
-//!   • Underscore form (compat shim):         `i18n/<lang-tag>/looplace_ui.ftl`
-//!
-//! During this transition, always edit/add strings in the HYPhen file first, then mirror
-//! to the underscore file (a quick copy) so compile-time checks succeed either way.
-//!
-//! De‑dup Plan:
-//!   1. Once builds succeed reliably on all targets (desktop + wasm) using only the
-//!      hyphen variant for several consecutive commits, we will delete the underscore copies.
-//!   2. If a future macro / crate update requires underscore again, we still have
-//!      history to restore it; no functional strings will be lost.
-//!
-//! When adding a new locale today: create BOTH `looplace-ui.ftl` and `looplace_ui.ftl`
-//! (identical contents) under its language folder until the de‑dup step is complete.
 //!
 //! This module wires together:
 //! - `i18n-embed` (language selection + asset loading)
@@ -29,6 +12,7 @@
 //! i18n/
 //!   en-US/looplace-ui.ftl   (fallback/reference)
 //!   es-ES/looplace-ui.ftl   (additional locale)
+//!   fr-FR/looplace-ui.ftl   (additional locale)
 //! ```
 //!
 //! Usage in a component (after calling `i18n::init()` once at app start):
@@ -40,8 +24,9 @@
 //! ```
 //!
 //! To add a new locale:
-//! 1. Create `i18n/<lang-id>/looplace-ui.ftl`
-//! 2. Mirror new message IDs in `en-US/looplace-ui.ftl` first (so helpers & `fl!` still compile).
+//! 1. Copy `en-US/looplace-ui.ftl` to `i18n/<lang-id>/looplace-ui.ftl`.
+//! 2. Translate each message value (keep IDs and variable placeholders identical).
+//! 3. Run tests to ensure completeness.
 //!
 //! Platform notes:
 //! - Desktop: uses `DesktopLanguageRequester` (OS locale list).
@@ -56,8 +41,7 @@
 //! - `fl` macro re-export (for direct keyed access when needed).
 //! - `LOADER` – global `FluentLanguageLoader` consumed by helpers & `fl!` macro.
 //!
-//! NOTE: While the macro may internally normalize the domain, the hyphenated filename
-//! `looplace-ui.ftl` works as-is. Keep all locale files using the hyphen form for consistency.
+//! NOTE: The hyphenated filename `looplace-ui.ftl` is canonical across all locales.
 use std::sync::Once;
 
 use i18n_embed::fluent::FluentLanguageLoader;
@@ -129,31 +113,6 @@ pub fn available_languages() -> Vec<String> {
     langs.sort();
     langs.dedup();
     langs
-}
-
-/// Helper: localized navbar label "Home".
-pub fn tr_nav_home() -> String {
-    fl!(&*LOADER, "nav-home")
-}
-
-/// Helper: localized navbar label "PVT".
-pub fn tr_nav_pvt() -> String {
-    fl!(&*LOADER, "nav-pvt")
-}
-
-/// Helper: localized navbar label "2-back".
-pub fn tr_nav_nback() -> String {
-    fl!(&*LOADER, "nav-nback")
-}
-
-/// Helper: localized navbar label "Results".
-pub fn tr_nav_results() -> String {
-    fl!(&*LOADER, "nav-results")
-}
-
-/// Helper: localized tagline.
-pub fn tr_tagline() -> String {
-    fl!(&*LOADER, "tagline")
 }
 
 #[cfg(target_arch = "wasm32")]

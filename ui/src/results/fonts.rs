@@ -57,6 +57,7 @@
 #![allow(dead_code)]
 
 use std::fmt;
+use std::sync::OnceLock;
 
 #[cfg(feature = "embed_inter")]
 use fontdue::Font;
@@ -145,12 +146,12 @@ impl Fonts {
     /// If the real fonts are available we sample a representative glyph
     /// (uppercase 'M') for its reported height, then normalize. Otherwise
     /// we reproduce the previous heuristic so layout diffs remain small.
-    pub fn metrics(&self, weight: FontWeight, size_px: f64) -> TextMetrics {
+    pub fn metrics(&self, _weight: FontWeight, size_px: f64) -> TextMetrics {
         #[cfg(feature = "embed_inter")]
         {
             use fontdue::Font;
 
-            let font: &Font = match weight {
+            let font: &Font = match _weight {
                 FontWeight::Regular => &self.regular,
                 FontWeight::SemiBold => &self.semibold,
                 FontWeight::Bold => &self.bold,
@@ -190,18 +191,9 @@ impl Fonts {
 /// Prefer caching the `Fonts` in the calling scope instead of using this
 /// per-measure call in a tight loop.
 pub fn measure(weight: FontWeight, size_px: f64) -> TextMetrics {
-    // A lightweight static so we only load fonts once.
-    static mut FONTS_ONCE: Option<Fonts> = None;
-    // SAFETY: write once pattern; export rendering is single-threaded in current design.
-    unsafe {
-        if FONTS_ONCE.is_none() {
-            FONTS_ONCE = Some(Fonts::load());
-        }
-        FONTS_ONCE
-            .as_ref()
-            .expect("Fonts not initialized")
-            .metrics(weight, size_px)
-    }
+    static FONTS: OnceLock<Fonts> = OnceLock::new();
+    let fonts = FONTS.get_or_init(Fonts::load);
+    fonts.metrics(weight, size_px)
 }
 
 #[cfg(test)]

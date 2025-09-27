@@ -67,11 +67,29 @@ pub fn AppNavbar(children: Element) -> Element {
     let mut current_lang = use_signal(|| "en-US".to_string());
     let langs = use_signal(i18n::available_languages);
     let show_switcher = langs().len() > 1;
+    // Obtain global language code signal if the platform (web crate) provided it.
+    let lang_code_ctx: Option<Signal<String>> = try_use_context::<Signal<String>>();
+    // Establish a reactive dependency on the global language code (if provided)
+    let _lang_marker = lang_code_ctx.as_ref().map(|c| c()).unwrap_or_default();
+
+    #[cfg(debug_assertions)]
+    {
+        if let Some(code) = lang_code_ctx.as_ref() {
+            println!("[i18n] AppNavbar render lang={}", code());
+        } else {
+            println!("[i18n] AppNavbar render lang=<none>");
+        }
+    }
 
     let on_change = move |evt: dioxus::events::FormEvent| {
         let val = evt.value();
         if i18n::set_language(&val).is_ok() {
-            current_lang.set(val);
+            // Update local select state
+            current_lang.set(val.clone());
+            // Propagate to global language code signal if the platform provided one
+            if let Some(mut code) = lang_code_ctx {
+                code.set(val);
+            }
         }
     };
 
@@ -107,6 +125,8 @@ pub fn AppNavbar(children: Element) -> Element {
         header {
             id: "navbar",
             class: "navbar",
+            // Hidden marker ensures AppNavbar re-renders when the global language signal changes.
+            div { style: "display:none", "{_lang_marker}" }
             div { class: "navbar__inner",
                 // Brand
                 div { class: "navbar__brand",
@@ -130,7 +150,7 @@ pub fn AppNavbar(children: Element) -> Element {
                         label {
                             class: "visually-hidden",
                             r#for: "locale-select",
-                            "Language"
+                            {t!("nav-language-label")}
                         }
                         select {
                             id: "locale-select",

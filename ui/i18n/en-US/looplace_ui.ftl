@@ -10,7 +10,6 @@ nav-home = Home
 nav-pvt = PVT
 nav-nback = 2-back
 nav-results = Results
-nav-language-label = Language
 
 ## Brand & general
 tagline = Track focus with compassion
@@ -121,44 +120,3 @@ nback-metric-median-hit-rt = Median hit RT
 nback-metric-mean-hit-rt = Mean hit RT
 nback-metric-hit-rt-p10p90 = Hit RT p10/p90
 nback-error-generic = ⚠️ { $message }
-
-## Common (shared UI labels)
-common-cancel = Cancel
-common-progress = Progress
-
-## PVT guidance (dynamic status text)
-pvt-guidance-idle = Press start, then wait for the milliseconds counter to appear.
-pvt-guidance-waiting = Hold steady… the counter will appear soon.
-pvt-guidance-active = Tap or press space the moment the counter appears.
-pvt-guidance-completed = Session complete. Start again when ready.
-pvt-guidance-aborted = Run cancelled. Start to retry.
-
-## N-Back additional labels
-nback-get-ready = Get ready
-nback-mode-practice = Practice
-nback-mode-main = Main session
-# Accessibility label for reaction target / hitbox
-nback-aria-respond = Respond to current letter
-
-## Home page
-home-title = Looplace
-home-tagline-short = Small loops • clear minds.
-home-intro-1 = Track psychomotor vigilance and working memory with shared engines that run everywhere.
-home-feature-pvt = Precise PVT timing with local metrics
-home-feature-nback = 2-back working memory sessions
-home-feature-local = Results stored locally with export options
-home-cta = Choose a task to get started.
-
-## PVT page
-page-pvt-title = Psychomotor Vigilance Task
-page-pvt-intro = Run a short vigilance block to capture reaction time metrics and lapse counts.
-
-## N-Back page
-page-nback-title = 2-back Working Memory
-page-nback-intro = Start with a short guided warm-up, then follow the 2-back stream—respond whenever the letter matches the one from two trials ago to capture sensitivity (d′), response bias, and reaction-time trends.
-
-## Results page (extra)
-results-page-intro = Review summaries from recent runs, inspect quality checks, and export data for deeper analysis.
-results-refresh = Refresh
-results-empty = No runs recorded yet. Completed sessions will appear after you finish a task.
-results-error-prefix = ⚠️

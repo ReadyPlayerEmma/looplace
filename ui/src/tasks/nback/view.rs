@@ -14,12 +14,17 @@ use super::engine::{
 };
 use super::metrics::NBackMetrics;
 
-const PRACTICE_LABEL: &str = "Practice";
-const MAIN_LABEL: &str = "Main session";
 const FEEDBACK_HOLD_MS: u64 = 850;
+
+// (Reverted) Use compile-time checked translation macro again.
+// Removed temporary runtime helper that bypassed `fl!()` validation.
 
 #[component]
 pub fn NBackView() -> Element {
+    // Subscribe to global language code so instructional section re-renders on locale switch.
+    let _lang_code: Option<Signal<String>> = try_use_context::<Signal<String>>();
+    let _lang_marker = _lang_code.as_ref().map(|s| s()).unwrap_or_default();
+
     let engine = use_signal(NBackEngine::default);
     let qc_flags = use_signal(QualityFlags::pristine);
     let practice_metrics = use_signal(|| Option::<NBackMetrics>::None);
@@ -239,14 +244,15 @@ pub fn NBackView() -> Element {
     let last_practice = practice_metrics();
     let latest_metrics = last_metrics();
     let error_message = last_error();
+    let error_message_cloned = error_message.clone();
     let feedback = feedback_state();
 
     let mode_label = active_mode
         .map(|mode| match mode {
-            RunMode::Practice => PRACTICE_LABEL,
-            RunMode::Main => MAIN_LABEL,
+            RunMode::Practice => crate::t!("nback-mode-practice"),
+            RunMode::Main => crate::t!("nback-mode-main"),
         })
-        .unwrap_or("");
+        .unwrap_or_default();
 
     rsx! {
         article { class: "task task-nback",
@@ -257,7 +263,7 @@ pub fn NBackView() -> Element {
                     button {
                         class: "button button--ghost button--compact task-canvas__cancel",
                         onclick: move |_| send_event(NBackEvent::Abort),
-                        "Cancel"
+                        {crate::t!("common-cancel")}
                     }
 
                     if !mode_label.is_empty() {
@@ -267,7 +273,7 @@ pub fn NBackView() -> Element {
                     button {
                         r#type: "button",
                         class: "task-nback__hitbox",
-                        aria_label: "Respond to current letter",
+                        aria_label: crate::t!("nback-aria-respond"),
                         autofocus: true,
                         onclick: move |_| respond_now(),
                         onkeydown: move |evt| {
@@ -283,7 +289,7 @@ pub fn NBackView() -> Element {
                             if let Some(letter) = current_letter {
                                 "{letter}"
                             } else {
-                                span { "Get ready" }
+                                span { {crate::t!("nback-get-ready")} }
                             }
                         }
 
@@ -293,19 +299,21 @@ pub fn NBackView() -> Element {
                     }
 
                     div { class: "task-progress task-progress--overlay",
-                        span { "Progress" }
+                        span { {crate::t!("common-progress")} }
                         span { class: "task-progress__value", "{completed_trials}/{total_trials}" }
                     }
                 }
             } else {
                 section { class: "task-card task-card--instructions task-nback__controls",
+                    // Hidden i18n marker to force re-render of instruction copy when locale changes
+                    div { style: "display:none", "{_lang_marker}" }
                     details { class: "task-instructions",
-                        summary { "How the task works" }
+                        summary { {crate::t!("nback-how-summary")} }
                         ul { class: "task-instructions__list",
-                            li { "Each letter displays for 0.5 s, followed by 2.5 s of blank interval." }
-                            li { "Press space (or tap the pad) whenever the letter matches the one from two trials ago." }
-                            li { "Practice block lasts ~35 seconds; main run is about 3 minutes." }
-                            li { "Focus on accuracy first, then speed. False alarms tax d′ just like misses." }
+                            li { {crate::t!("nback-how-step-timing")} }
+                            li { {crate::t!("nback-how-step-rule")} }
+                            li { {crate::t!("nback-how-step-practice")} }
+                            li { {crate::t!("nback-how-step-strategy")} }
                         }
                     }
 
@@ -313,50 +321,54 @@ pub fn NBackView() -> Element {
                         button {
                             class: "button button--accent",
                             onclick: move |_| send_event(NBackEvent::StartPractice),
-                            "Start practice"
+                            {crate::t!("nback-start-practice")}
                         }
                         button {
                             class: "button button--primary",
                             onclick: move |_| send_event(NBackEvent::StartMain),
-                            "Start main session"
+                            {crate::t!("nback-start-main")}
                         }
                     }
                 }
 
                 if let Some(metrics) = last_practice {
                     section { class: "task-card task-card--subtle task-nback__practice-summary",
-                        h3 { "Practice recap" }
-                        p { "Hits {metrics.hits} / {metrics.target_trials} • False alarms {metrics.false_alarms} • Accuracy {(metrics.accuracy * 100.0).round()}%" }
+                        h3 { {crate::t!("nback-practice-recap")} }
+                        p {
+                            {crate::t!("nback-metric-hits")} " " {metrics.hits.to_string()} " / " {metrics.target_trials.to_string()}
+                            " • " {crate::t!("nback-metric-false-alarms")} " " {metrics.false_alarms.to_string()}
+                            " • " {crate::t!("nback-metric-accuracy")} " " {(metrics.accuracy * 100.0).round().to_string()} "%"
+                        }
                         if metrics.hits > 0 {
-                            p { "Median hit RT {format::format_ms(metrics.median_hit_rt_ms)}" }
+                            p { {crate::t!("nback-practice-median-hit-rt")} " " {format::format_ms(metrics.median_hit_rt_ms)} }
                         }
                     }
                 }
 
                 if let Some(metrics) = latest_metrics {
                     section { class: "task-card task-nback__metrics",
-                        h3 { "Last main session" }
+                        h3 { {crate::t!("nback-last-session")} }
                         ul { class: "metrics-grid",
-                            li { "Hits: {metrics.hits} / {metrics.target_trials}" }
-                            li { "Misses: {metrics.misses}" }
-                            li { "False alarms: {metrics.false_alarms}" }
-                            li { "Correct rejections: {metrics.correct_rejections}" }
-                            li { "Accuracy: {(metrics.accuracy * 100.0).round()}%" }
-                            li { "d′: {metrics.d_prime:.2}" }
-                            li { "Criterion: {metrics.criterion:.2}" }
-                            li { "Median hit RT: {format::format_ms(metrics.median_hit_rt_ms)}" }
-                            li { "Mean hit RT: {format::format_ms(metrics.mean_hit_rt_ms)}" }
-                            li { "Hit RT p10/p90: {format::format_ms(metrics.p10_hit_rt_ms)} / {format::format_ms(metrics.p90_hit_rt_ms)}" }
+                            li { {crate::t!("nback-metric-hits")} ": " {metrics.hits.to_string()} " / " {metrics.target_trials.to_string()} }
+                            li { {crate::t!("nback-metric-misses")} ": " {metrics.misses.to_string()} }
+                            li { {crate::t!("nback-metric-false-alarms")} ": " {metrics.false_alarms.to_string()} }
+                            li { {crate::t!("nback-metric-correct-rejections")} ": " {metrics.correct_rejections.to_string()} }
+                            li { {crate::t!("nback-metric-accuracy")} ": " {(metrics.accuracy * 100.0).round().to_string()} "%" }
+                            li { {crate::t!("nback-metric-dprime")} ": " {format!("{:.2}", metrics.d_prime).to_string()} }
+                            li { {crate::t!("nback-metric-criterion")} ": " {format!("{:.2}", metrics.criterion).to_string()} }
+                            li { {crate::t!("nback-metric-median-hit-rt")} ": " {format::format_ms(metrics.median_hit_rt_ms).to_string()} }
+                            li { {crate::t!("nback-metric-mean-hit-rt")} ": " {format::format_ms(metrics.mean_hit_rt_ms).to_string()} }
+                            li { {crate::t!("nback-metric-hit-rt-p10p90")} ": " {format::format_ms(metrics.p10_hit_rt_ms).to_string()} " / " {format::format_ms(metrics.p90_hit_rt_ms).to_string()} }
                         }
                     }
                 } else {
                     section { class: "task-card task-nback__metrics task-metrics--placeholder",
-                        p { "Metrics will appear after the first completed session." }
+                        p { {crate::t!("nback-metrics-placeholder")} }
                     }
                 }
 
-                if let Some(err) = error_message {
-                    div { class: "task-error", "⚠️ {err}" }
+                if let Some(err) = error_message_cloned {
+                    div { class: "task-error", {crate::t!("nback-error-generic", message = err.clone())} }
                 }
             }
         }

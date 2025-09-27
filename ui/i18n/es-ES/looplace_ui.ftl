@@ -8,8 +8,6 @@ nav-home = Inicio
 nav-pvt = PVT
 nav-nback = 2-back
 nav-results = Resultados
-nav-language-label = Idioma
-
 
 ## Marca y generales
 tagline = Rastrea el enfoque con compasión
@@ -126,44 +124,3 @@ nback-metric-mean-hit-rt = RT media aciertos
 nback-metric-hit-rt-p10p90 = RT aciertos p10/p90
 # $message – texto de error
 nback-error-generic = ⚠️ { $message }
-
-## Comunes (etiquetas compartidas)
-common-cancel = Cancelar
-common-progress = Progreso
-
-## Guía PVT (textos dinámicos de estado)
-pvt-guidance-idle = Pulsa comenzar y espera a que aparezca el contador de milisegundos.
-pvt-guidance-waiting = Mantente preparado… el contador aparecerá pronto.
-pvt-guidance-active = Toca o pulsa espacio en cuanto aparezca el contador.
-pvt-guidance-completed = Sesión completa. Comienza de nuevo cuando estés listo.
-pvt-guidance-aborted = Sesión cancelada. Pulsa comenzar para reintentar.
-
-## N-Back etiquetas adicionales
-nback-get-ready = Prepárate
-nback-mode-practice = Práctica
-nback-mode-main = Sesión principal
-# Etiqueta accesible para el área de respuesta
-nback-aria-respond = Responder a la letra actual
-
-## Página de inicio
-home-title = Looplace
-home-tagline-short = Bucles pequeños • mentes claras.
-home-intro-1 = Rastrea la vigilancia psicomotora y la memoria de trabajo con motores compartidos que se ejecutan en todas partes.
-home-feature-pvt = Temporización PVT precisa con métricas locales
-home-feature-nback = Sesiones de memoria de trabajo 2-back
-home-feature-local = Resultados guardados localmente con opciones de exportación
-home-cta = Elige una tarea para comenzar.
-
-## Página PVT
-page-pvt-title = Tarea de Vigilancia Psicomotora
-page-pvt-intro = Ejecuta un bloque corto de vigilancia para capturar métricas de tiempo de reacción y lapsos.
-
-## Página N-Back
-page-nback-title = Memoria de trabajo 2-back
-page-nback-intro = Comienza con un breve calentamiento guiado y luego sigue la secuencia 2-back — responde cuando la letra coincida con la de dos ensayos atrás para capturar sensibilidad (d′), sesgo de respuesta y tendencias de tiempo de reacción.
-
-## Página de resultados (extra)
-results-page-intro = Revisa resúmenes de sesiones recientes, inspecciona controles de calidad y exporta datos para análisis más profundo.
-results-refresh = Actualizar
-results-empty = Aún no hay sesiones registradas. Las sesiones completadas aparecerán después de terminar una tarea.
-results-error-prefix = ⚠️

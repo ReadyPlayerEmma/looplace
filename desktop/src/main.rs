@@ -62,16 +62,21 @@ fn nav_results(label: &str) -> Element {
 
 #[component]
 fn App() -> Element {
-    {
-        ui::i18n::init();
-        // Register localized navigation builder (desktop)
-        register_nav(NavBuilder {
-            home: nav_home,
-            pvt: nav_pvt,
-            nback: nav_nback,
-            results: nav_results,
-        });
-    } // Build cool things ✌️
+    // Initialize i18n once
+    ui::i18n::init();
+
+    // Provide global reactive language code signal (mirrors web approach)
+    // AppNavbar (shared) will update this via context on language selection.
+    let lang_code = use_signal(|| "en-US".to_string());
+    use_context_provider(|| lang_code);
+
+    // Register localized navigation builder (desktop)
+    register_nav(NavBuilder {
+        home: nav_home,
+        pvt: nav_pvt,
+        nback: nav_nback,
+        results: nav_results,
+    });
 
     rsx! {
         // Global app resources
@@ -81,7 +86,16 @@ fn App() -> Element {
             document::Style { "{MAIN_CSS_INLINE}" }
         }
 
-        Router::<Route> {}
+        // Key the routed subtree by current language to force full remount on change
+        // Hidden marker keeps explicit reactive dependency (optional)
+        div { style: "display:none", "lang={lang_code()}" }
+        // Keyed wrapper div to force full remount on language change and include a hidden
+        // reactive marker so we always depend on the lang_code signal.
+        div {
+            key: "{lang_code()}",
+            div { style: "display:none", "{lang_code()}" }
+            Router::<Route> { }
+        }
     }
 }
 
