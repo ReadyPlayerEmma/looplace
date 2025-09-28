@@ -400,6 +400,45 @@ a:hover {
     font-size: 0.84rem;
     color: rgba(245, 247, 251, 0.86);
 }
+/* Home page spacing overrides (tighter vertical rhythm than generic .page) */
+.page-home {
+    /* Narrower inter-section gap without affecting global pages */
+    --page-gap: 1.15rem;
+}
+
+/* Title: keep strong presence but tighten space below */
+.page-home > h1 {
+    margin: 0 0 0.4rem;
+}
+
+/* Intro paragraphs: collapse default top/bottom margins and keep readable width */
+.page-home > p {
+    margin: 0.25rem 0 0;
+    max-width: 760px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    font-size: 1.02rem;
+}
+
+/* Feature list: compact stack, no bullets */
+.page-home__features {
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-width: 640px;
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+}
+
+/* CTA paragraph: slight separation from features */
+.page-home__cta {
+    margin: 1.1rem 0 0;
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+}
 
 .results-list__timestamp {
     font-size: 0.8rem;
