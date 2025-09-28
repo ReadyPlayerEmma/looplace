@@ -5,7 +5,7 @@ Theme selector lint for the desktop build.
 Purpose:
 - Ensure that critical CSS selectors required by the desktop UI (especially the Results
   experience and readiness advisories) remain present in the unified shared theme:
-    ui/assets/theme/main.css
+  ui/assets/theme/main.css
 - Fail fast if a refactor accidentally drops or renames core classes, preventing a
   silent styling regression in packaged (embedded) desktop builds.
 

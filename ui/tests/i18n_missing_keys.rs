@@ -117,10 +117,9 @@ fn assert_no_dup_keys(src: &str, locale: &str) {
                 && !key.contains('\t')
                 && !key.starts_with('[')
                 && !key.starts_with('@')
+                && !seen.insert(key.to_string())
             {
-                if !seen.insert(key.to_string()) {
-                    dups.insert(format!("{key}  (line: \"{raw}\")"));
-                }
+                dups.insert(format!("{key}  (line: \"{raw}\")"));
             }
         }
     }

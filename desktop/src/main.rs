@@ -4,7 +4,6 @@
 use std::path::PathBuf;
 
 #[cfg(feature = "desktop")]
-#[cfg(feature = "desktop")]
 use dioxus::desktop::{tao::window::WindowBuilder, Config};
 use dioxus::prelude::*;
 

@@ -1,15 +1,18 @@
 #![cfg(test)]
-//! Ensures the embedded desktop CSS (`assets/main.css`) remains present & non‑trivial.
+//! Ensures the embedded desktop CSS (shared unified theme) remains present & non‑trivial.
 //!
 //! Rationale:
-//! - We rely on `include_str!` at compile time to inline styles (no external file in Windows zip).
-//! - An accidental deletion or empty file would silently degrade styling only at *runtime*.
-//! - This test fails the build early if the file goes missing or is blank.
+//! - We now embed the shared theme from `ui/assets/theme/main.css` (no per‑desktop duplicate file).
+//! - An accidental truncation or path break would silently degrade styling only at *runtime*.
+//! - This test fails the build early if the unified theme goes missing or is blank.
 //!
-//! If you intentionally rename or relocate the CSS file, update both this test and the
-//! `include_str!` in `desktop/src/main.rs`.
+//! If you intentionally rename or relocate the theme, update both this test and the
+//! `include_str!` constant in `desktop/src/main.rs`.
 
-const EMBEDDED_CSS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/main.css"));
+const EMBEDDED_CSS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../ui/assets/theme/main.css"
+));
 
 #[test]
 fn embedded_css_file_exists_and_is_not_empty() {
