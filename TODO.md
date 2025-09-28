@@ -11,9 +11,9 @@
 
 ## Current focus
 
-- Finalise the M2 Results milestone: keep polishing charts/exports while we prepare filters + histogram (P1).
-- Unify exports behind a shared SVG renderer so desktop/web PNGs match pixel-for-pixel.
-- Keep accessibility polish (M4 goals) in view once results work lands.
+- Wrap up post-M2 refinements (export polish, minor chart tweaks, filtering groundwork).
+- Integrate new readiness (cooldown) advisories for PVT (4h) and 2-back (72h) on test pages.
+- Begin desktop polish: maximize-on-launch, window title + version, future Windows icon & executable metadata.
 
 ---
 
@@ -77,7 +77,7 @@
 
 **Acceptance (M1):**
 
-* Complete a 3-minute PVT on web and desktop; summary saved locally.
+* Complete a full PVT (target 20 trials, ~3 minutes) on web and desktop; summary saved locally.
 
 ---
 
@@ -126,7 +126,23 @@
 
 * [ ] High-contrast theme; keyboard-only operation verified
 * [ ] Respect reduced-motion preference (chart transitions)
-* [ ] Desktop: window min size/title; (P1) Save dialogs for PNG/CSV/JSON
+* [x] Desktop: maximize on launch & window title/version (“Looplace vX.Y.Z”); (P1) Save dialogs for PNG/CSV/JSON
+
+---
+## M5 — Desktop & guidance polish (in progress)
+
+* [ ] Windows runtime window icon (multi-size `.ico`) via `with_window_icon`
+* [ ] Windows executable icon embedding (e.g. `winres` / `.rc`)
+* [ ] Readiness advisory refinements (live refresh post-run, optional disable)
+* [ ] Add configurable cooldown intervals (user settings)
+* [ ] Dynamic window title context (append active task)
+* [ ] Shared SVG → PNG rasterizer for desktop exports (resvg/tiny-skia)
+* [ ] Optional fullscreen / focus mode toggle
+
+**Acceptance (M5):**
+* Window shows custom icon (Win), title reflects active version & optionally active task.
+* Cooldown advisories feel consistent and auto-refresh after completing a run.
+* Desktop PNG exports use shared rasterization for parity with web.
 
 ---
 
@@ -216,3 +232,4 @@ Toggle via `?debug`: last RTs, RAF delta, visibility count, seed, platform info.
 * Log papercuts (focus drift, layering bugs, etc.) while they’re fresh so they don’t stack up and sap the fun from the project.
 * CI now covers macOS Apple Silicon bundles and Windows x64 zips; expand to Linux or additional Windows packaging when needed.
 * TODO: Language switch currently only forces a full content update reliably when triggered from Home; switching locale while on PVT / N-Back / Results often needs a route change to reflect. Unify remount (move keyed wrapper to shared layout or introduce global locale hook) before next release.
+* Readiness advisories now live on PVT & 2-back pages (policy: PVT ≥4h, 2-back ≥72h); consider persistence of user overrides & i18n of messages.
