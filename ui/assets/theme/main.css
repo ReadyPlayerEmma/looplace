@@ -20,6 +20,8 @@
     --page-pad-bottom: 4rem;
     --page-gap: 1.8rem;
     --font-size-page-title: 2.1rem;
+    --page-title-margin-bottom: 0.4rem;
+    --page-first-paragraph-offset: 0.25rem;
 
     /* Card tokens */
     --card-radius: 20px;
@@ -70,7 +72,8 @@ a:hover {
 }
 
 .page h1 {
-    margin-top: 0;
+    /* Unified bottom spacing for all top-level page titles */
+    margin: 0 0 var(--page-title-margin-bottom);
     font-size: var(--font-size-page-title);
     letter-spacing: 0.5px;
 }
@@ -265,7 +268,7 @@ a:hover {
 }
 
 .results__intro {
-    margin: 0;
+    margin: var(--page-first-paragraph-offset) 0 0;
     max-width: 760px;
     color: var(--color-text-muted);
 }
@@ -408,13 +411,11 @@ a:hover {
 }
 
 /* Title: keep strong presence but tighten space below */
-.page-home > h1 {
-    margin: 0 0 0.4rem;
-}
+/* (Removed per-page override: .page-home > h1 now uses unified .page h1 spacing) */
 
 /* Intro paragraphs: collapse default top/bottom margins and keep readable width */
 .page-home > p {
-    margin: 0.25rem 0 0;
+    margin: var(--page-first-paragraph-offset) 0 0;
     max-width: 760px;
     line-height: 1.5;
     color: var(--color-text-muted);
@@ -442,15 +443,12 @@ a:hover {
 }
 
 /* Task page heading spacing (PVT & N-back) */
-.page-pvt > h1,
-.page-nback > h1 {
-    margin: 0 0 0.5rem;
-}
+/* (Removed task page overrides: .page-pvt > h1, .page-nback > h1 now use unified .page h1 spacing) */
 
 /* First intro paragraph under task headings */
 .page-pvt > p:first-of-type,
 .page-nback > p:first-of-type {
-    margin: 0;
+    margin: var(--page-first-paragraph-offset) 0 0;
     max-width: 760px;
     color: var(--color-text-muted);
     line-height: 1.5;
