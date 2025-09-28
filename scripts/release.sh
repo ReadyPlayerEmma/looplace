@@ -64,6 +64,15 @@
 #   Non-zero on failure (see stderr for context)
 #
 set -euo pipefail
+# Disable git pager to prevent interactive 'less' or SIGPIPE exits in non‑interactive or dry-run scenarios.
+export GIT_PAGER=cat
+export PAGER=cat
+unset LESS 2>/dev/null || true
+
+# In some dry-run cases (especially when piping git log output) a SIGPIPE from a pager
+# or an unexpected non-zero from a subshell could cause the script to exit after
+# generating notes. We trap that so a dry run still exits 0 when its core steps succeed.
+DRY_RUN_NOTES_OK=0
 
 ########################################
 # Logging helpers
@@ -637,7 +646,16 @@ run_qa
 run_tests
 print_diff_summary
 commit_and_tag
-generate_notes
+# Guard notes generation; if it fails during a dry run we don't want to abort the whole script.
+if ! generate_notes; then
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    warn "Non-fatal: release notes generation failed during dry run."
+    DRY_RUN_NOTES_OK=1
+  else
+    err "Release notes generation failed."
+    exit 1
+  fi
+fi
 update_changelog
 emit_metadata_json
 package_macos
@@ -653,7 +671,11 @@ if [[ "${CREATE_TAG}" -eq 1 && "${DO_PUSH}" -eq 0 ]]; then
 fi
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  warn "Dry run: no repository changes or tags were created."
+  if [[ "${DRY_RUN_NOTES_OK}" -eq 1 ]]; then
+    warn "Dry run completed with a non-fatal notes generation issue (ignored)."
+  else
+    warn "Dry run: no repository changes or tags were created."
+  fi
 fi
 
 # End of file
