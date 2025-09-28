@@ -4,7 +4,8 @@
 use std::path::PathBuf;
 
 #[cfg(feature = "desktop")]
-use dioxus::desktop::Config;
+#[cfg(feature = "desktop")]
+use dioxus::desktop::{tao::window::WindowBuilder, Config};
 use dioxus::prelude::*;
 
 use ui::components::app_navbar::{register_nav, NavBuilder};
@@ -33,12 +34,11 @@ const MAIN_CSS_INLINE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "
 fn main() {
     let resource_dir = resolve_resource_dir();
 
-    // (Temporarily disabled) Attempted to maximize window on launch.
-    // TODO: Reintroduce maximize once builder API confirmed for current dioxus-desktop version.
+    // Maximize window on launch (dioxus-desktop 0.6.x: pass a WindowBuilder value)
     LaunchBuilder::desktop()
         .with_cfg(
             Config::new()
-                // .with_window(|w| w.with_maximized(true))
+                .with_window(WindowBuilder::new().with_maximized(true))
                 .with_resource_directory(resource_dir),
         )
         .launch(App);
@@ -79,6 +79,15 @@ fn App() -> Element {
         nback: nav_nback,
         results: nav_results,
     });
+
+    // Runtime maximize fallback (in case initial builder maximize is ignored by WM)
+    #[cfg(feature = "desktop")]
+    {
+        let win = dioxus::desktop::use_window();
+        use_effect(move || {
+            win.set_maximized(true);
+        });
+    }
 
     rsx! {
         // Global app resources
