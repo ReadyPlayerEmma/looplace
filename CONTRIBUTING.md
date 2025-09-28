@@ -150,6 +150,75 @@ Summaries are stored under the localStorage key `looplace_summaries` as a JSON a
 
 ---
 
+## Localization (i18n)
+
+Looplace ships with live, runtime language switching (currently English `en-US`, Spanish `es-ES`, and French `fr-FR`) powered by Fluent + `i18n-embed`. All translation assets live in the shared UI crate so every platform (desktop, web, mobile) stays in sync.
+
+### Folder layout
+```
+ui/
+  src/i18n.rs
+  i18n/
+    en-US/looplace-ui.ftl   (fallback / reference locale)
+    es-ES/looplace-ui.ftl
+    fr-FR/looplace-ui.ftl
+```
+
+### Adding a new language
+1. Copy the fallback file:
+   ```
+   cp ui/i18n/en-US/looplace-ui.ftl ui/i18n/<lang-tag>/looplace-ui.ftl
+   ```
+   Use a valid BCP‑47 language tag (e.g. `de-DE`, `pt-BR`).
+2. Translate only the message values (keep IDs and variable placeholders unchanged).
+3. Run tests (the completeness test will fail if:
+   - Any fallback key is missing in the new locale.
+   - There are syntax errors in the FTL file).
+4. Launch the app; the new tag should appear automatically in the language selector.
+
+### Using translations in code
+Call `ui::i18n::init()` once near the root (already done in each platform `App`).  
+Then inside components use the short macro:
+```rust
+{crate::t!("nav-home")}
+{crate::t!("pvt-how-step-target", trials = total_target)}
+```
+The `t!` macro expands to a compile‑time checked `fl!` call against the shared loader. Missing keys cause a build error in the fallback locale and a runtime warning in non‑fallback locales.
+
+### Live switching
+- The global language code is stored in a Dioxus `Signal<String>` provided via context.
+- The routed subtree is keyed by that language code to force a clean remount.
+- Some deeper subsections (task instruction accordions, results panels) also subscribe with a hidden “marker” `div` to ensure they re-render even if internal memoization changes.
+
+### Best practices
+- Prefer short, stable message IDs: `results-empty`, `pvt-start`, `nback-start-main`.
+- Reuse shared prefixes (`pvt-`, `nback-`, `results-`, `nav-`, `home-`) for discoverability.
+- For dynamic variables, pass them explicitly: `t!("pvt-how-step-target", trials = total_target)`.
+- Avoid concatenating translated fragments manually—add a dedicated full sentence key instead.
+- Keep punctuation inside the translation value (so locales can adapt, e.g., spacing around colons).
+
+### Pitfalls to avoid
+| Pitfall | Fix |
+| ------- | --- |
+| Reusing an ID for a different meaning | Create a new ID (IDs are semantic, not just placeholders). |
+| Hard‑coding English in task UIs “temporarily” | Add the key now; fallback stays English anyway. |
+| Building sentences via `format!("{t1} {value} {t2}")` | Create one message with a `{value}` placeholder. |
+| Forgetting to subscribe to language signal in a long‑lived component | Add a hidden marker `div { "{lang_signal()}" }` or rely on the keyed subtree higher up. |
+
+### Testing & CI
+- The completeness test in `ui/src/tests/i18n_completeness.rs` parses all `t!("...")` usages and ensures:
+  - Every referenced key exists in the fallback locale.
+  - All other locales contain every fallback key.
+- Add your new locale before enabling CI gating to avoid noise.
+
+### Removing a key
+1. Update all call sites (search for `t!("the-old-key")`).
+2. Remove the key from every `.ftl` file.
+3. Run tests (they should pass—no hidden usages).
+4. Commit as a single “i18n: remove obsolete key <id>” change.
+
+---
+
 ## Need help?
 
 If something feels unclear or brittle, add a note in `AGENTS.md` under “Parking lot” or open a discussion. We’re building this to support real people—tight feedback loops keep it trustworthy.

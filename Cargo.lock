@@ -3231,14 +3231,14 @@ checksum = "b3bd0dd2cd90571056fdb71f6275fada10131182f84899f4b2a916e565d81d86"
 
 [[package]]
 name = "looplace-api"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "dioxus",
 ]
 
 [[package]]
 name = "looplace-desktop"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "dioxus",
  "looplace-ui",
@@ -3246,7 +3246,7 @@ dependencies = [
 
 [[package]]
 name = "looplace-mobile"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "dioxus",
  "looplace-ui",
@@ -3254,7 +3254,7 @@ dependencies = [
 
 [[package]]
 name = "looplace-ui"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "arboard",
  "base64 0.21.7",
@@ -3292,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "looplace-web"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "dioxus",
  "looplace-ui",

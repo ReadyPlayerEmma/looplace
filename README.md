@@ -18,6 +18,7 @@ Our goal is to keep the tools approachable while layering in richer analysis: jo
 - **Psychomotor Vigilance Task (PVT)** with precise timing, lapse tracking, and local summaries.
 - **2-back working-memory task** with a short practice block, d′/criterion metrics, and immediate response feedback.
 - **Local-first storage**: every run produces a lightweight JSON summary ready for export or deeper analysis.
+- **Live localization**: English, Spanish, and French with instant in-app language switching (no reload) and compile-time checked translation keys.
 - **Shared UI crate** so additions land across desktop, web, and mobile with minimal effort.
 - **Unified task design system**: both tasks share consistent task cards, primary/secondary buttons, expandable instructions, and at-a-glance metrics.
 
