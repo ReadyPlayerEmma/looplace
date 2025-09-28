@@ -3,7 +3,7 @@ name: Build (Desktop)
 # Push/PR triggers are active; adjust matrix below to add more platforms when ready.
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -46,41 +46,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          APP_DIR="target/${{ matrix.target }}/release"
-          OUT="looplace-desktop-${{ matrix.target }}"
-          APP_NAME="Looplace"
-          BUNDLE_ROOT="dist/$OUT/${APP_NAME}.app"
-          MACOS_DIR="$BUNDLE_ROOT/Contents/MacOS"
-          RESOURCES_DIR="$BUNDLE_ROOT/Contents/Resources"
-
-          mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-          cp "$APP_DIR/${{ matrix.bin }}" "$MACOS_DIR/$APP_NAME"
-          chmod +x "$MACOS_DIR/$APP_NAME"
-
-          cp desktop/macos/Info.plist "$BUNDLE_ROOT/Contents/Info.plist"
-
-          if [ -d desktop/assets ]; then
-            cp -R desktop/assets "$MACOS_DIR/assets"
-          fi
-
-          VERSION=$(grep -m1 '^version' desktop/Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$BUNDLE_ROOT/Contents/Info.plist"
-
-          xattr -cr "$BUNDLE_ROOT" || true
-          codesign --force --deep --sign "-" "$BUNDLE_ROOT" || true
-
-          BUNDLE_PARENT_NAME="$OUT-macos"
-          BUNDLE_PARENT="dist/$BUNDLE_PARENT_NAME"
-          rm -rf "$BUNDLE_PARENT"
-          mkdir -p "$BUNDLE_PARENT"
-          mv "$BUNDLE_ROOT" "$BUNDLE_PARENT/"
-
-          cd dist
-          ditto -c -k --keepParent "$BUNDLE_PARENT_NAME" "$OUT.zip"
-          mv "$BUNDLE_PARENT_NAME/${APP_NAME}.app" "$OUT/${APP_NAME}.app"
-          rmdir "$BUNDLE_PARENT_NAME"
+          echo "Using unified macOS bundling script"
+          RUST_TARGET="${{ matrix.target }}" \
+          OUT_BASENAME="looplace-desktop-${{ matrix.target }}" \
+          OUTPUT_DIR="dist" \
+          SIGN_IDENTITY="-" \
+          STRICT=1 \
+          scripts/macos/bundle.sh
+      - name: Compute checksum (macOS)
+        if: contains(matrix.target, 'apple')
+        shell: bash
+        run: |
+          shasum -a 256 dist/*.zip | tee dist/SHA256SUMS-${{ matrix.target }}.txt
 
       - name: Package artifact (Windows zip)
         if: contains(matrix.target, 'windows')
@@ -100,9 +77,19 @@ jobs:
           }
           Rename-Item (Join-Path $dest ${{ matrix.bin }}) "Looplace.exe"
           Compress-Archive -Path $dest -DestinationPath (Join-Path "dist" "$out.zip") -Force
+      - name: Compute checksum (Windows)
+        if: contains(matrix.target, 'windows')
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Filter *.zip | ForEach-Object {
+            $h = Get-FileHash $_.FullName -Algorithm SHA256
+            "$($h.Hash)  $($_.Name)"
+          } | Tee-Object -FilePath (Join-Path dist "SHA256SUMS-${{ matrix.target }}.txt")
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: looplace-${{ matrix.target }}
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS-*.txt

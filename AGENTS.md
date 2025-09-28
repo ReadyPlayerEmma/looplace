@@ -14,11 +14,12 @@
   - `cargo build --release -p looplace-desktop --features desktop --target aarch64-apple-darwin`
   - `cargo build --release -p looplace-desktop --target x86_64-pc-windows-msvc`
 - **Bundling**
-  - macOS `.app`: `./scripts/macos/bundle.sh` (drops `target/bundle/Looplace.app` + zip, ad-hoc signed)
-  - Windows portable zip generated automatically in CI (`Looplace.exe` + `assets/`)
+  - macOS `.app`: `./scripts/macos/bundle.sh` (CI-first; emits `dist/<OUT_BASENAME>/Looplace.app` + `dist/<OUT_BASENAME>.zip`, strips AppleDouble metadata, ad-hoc signed with `SIGN_IDENTITY=-` by default)
+  - Local parity check: `scripts/validate_bundle_local.sh --version <X.Y.Z>` (compares structure vs published release; ignores `._*` forks)
+  - Windows portable zip: generated automatically in CI (`Looplace.exe` + `assets/`); future Windows packaging script TBD.
 
 ## CI snapshot
-- `Build (Desktop)`: macOS Apple Silicon `.app` bundle + Windows x64 zip on every push/PR.
+- `Build (Desktop)`: macOS Apple Silicon `.app` bundle + Windows x64 zip on every push/PR (now both use canonical macOS bundler script).
 - `Release (Desktop)`: tagged builds publish both artifacts to GitHub Releases.
 - `Deploy (CF Pages)`: disabled for now; rename `.github/workflows/deploy-pages.yml.disabled` back to `.yml` if we resume web builds (requires `CF_API_TOKEN`/`CF_ACCOUNT_ID`).
 
@@ -34,7 +35,9 @@
 - Windows zip expects `Looplace.exe` at the root with an `assets/` folder; keep that layout stable.
 - `ui/src/navbar.rs` inlines CSS for release builds—maintain parity if adding new global styles.
 - Windows WebView2 drops `autofocus` on dynamically inserted nodes; capture the mounted PVT hitbox (`MountedEvent`) and call `set_focus(true)` via `dioxus::prelude::spawn` whenever runs start or advance so keyboard input stays live.
-- The `scripts/macos/bundle.sh` script can take `SIGN_IDENTITY` env once Developer ID certificates return.
+- Canonical macOS bundling: `scripts/macos/bundle.sh` (env vars of note: `RUST_TARGET`, `OUT_BASENAME`, `OUTPUT_DIR`, `SIGN_IDENTITY`, `STRICT=1` for structure checks; removes AppleDouble `._*` and `.DS_Store`).
+- Parity validation (macOS): `scripts/validate_bundle_local.sh --version <X.Y.Z>` compares a published artifact with a freshly packaged local one.
+- Optional checksum (manual): `shasum -a 256 dist/*.zip` for release notes.
 - Remember to update docs (`README.md`, `TODO.md`, `AGENTS.md`) whenever workflows or roadmaps shift.
 - When release smoke uncovers issues, use `gh issue view`/`gh issue comment` to triage and reply quickly from the CLI; note key repro steps and request retests once fixes land.
 
