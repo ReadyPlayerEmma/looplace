@@ -219,6 +219,86 @@ The `t!` macro expands to a compile‑time checked `fl!` call against the shared
 
 ---
 
+## Local release & packaging workflow
+
+Looplace uses GitHub Actions for authoritative release artifacts (tag-triggered builds publish macOS + Windows zips). The local release script is a preflight helper—use it to bump versions, run QA, and create/push the tag. Packaging is optional and only for local smoke tests.
+
+### Script: `scripts/release.sh`
+
+Core (default) actions:
+- Version bump (semantic: `major|minor|patch` or explicit `X.Y.Z`)
+- Update crate versions + README badge
+- Run rustfmt (check), clippy (deny warnings), cargo audit, tests
+- Commit updated files and create annotated tag `vX.Y.Z`
+- (Optional) push tag (`--push`)
+
+It does NOT publish or upload artifacts—CI handles that after the tag is pushed.
+
+### Common invocations
+
+```bash
+# Standard patch release (will tag; then manually push)
+scripts/release.sh patch
+
+# Patch release and push (CI picks it up)
+scripts/release.sh patch --push
+
+# Minor bump + notes + metadata (inspect before tagging)
+scripts/release.sh minor --notes --metadata-json --no-tag
+
+# Full preflight with macOS bundle + parity validation vs last release
+scripts/release.sh patch --package-macos --validate-against last
+
+# Fast (skip tests + QA + audit) just to trial a version bump
+scripts/release.sh patch --fast --no-tag
+```
+
+### Useful flags
+
+| Flag | Purpose |
+|------|---------|
+| `--no-readme` | Skip README version badge update |
+| `--no-tests` | Skip tests only |
+| `--no-qa` | Skip fmt/clippy (tests may still run) |
+| `--no-audit` | Skip cargo-audit |
+| `--fast` | Shortcut: skip tests, QA, audit |
+| `--notes` | Generate `RELEASE_NOTES_<version>.md` (amended into release commit if tagging) |
+| `--diff` | Print commit summary since previous tag |
+| `--metadata-json` | Emit `release_meta_<version>.json` (amended if tagging) |
+| `--changelog` | Update or create top section of `CHANGELOG.md` |
+| `--package-macos` / `--bundle` | Build + bundle macOS app locally |
+| `--package-windows` | Build Windows target locally (no local zip script yet) |
+| `--package-all` | Shorthand for both packaging flags |
+| `--validate-against <ver|last>` | Run structural parity validation vs a published macOS release |
+| `--sign-identity <ID>` | Pass codesign identity to bundler (default ad-hoc '-') |
+| `--allow-dirty` | Proceed with a non-clean working tree |
+| `--allow-non-main` | Skip branch=main enforcement |
+| `--dry-run` | Print planned actions without mutating repository |
+| `--no-tag` | Do everything except creating the git tag |
+
+### macOS bundling
+
+Canonical bundling is centralized in `scripts/macos/bundle.sh` (also used by CI). Artifacts:
+```
+dist/<OUT_BASENAME>/Looplace.app
+dist/<OUT_BASENAME>.zip (contains <OUT_BASENAME>-macos/Looplace.app)
+```
+Resource fork and AppleDouble (`._*`) files are stripped for a clean, deterministic tree.
+
+### Parity validation
+
+Use `scripts/validate_bundle_local.sh --version <X.Y.Z>` to compare a freshly built macOS bundle against the published release artifact’s structure. This is helpful after changing bundler logic or signing options.
+
+### Typical release flow
+
+1. Preflight locally: `scripts/release.sh patch`
+2. Inspect commit & version changes.
+3. Push tag: `git push origin vX.Y.Z` (or use `--push` in step 1).
+4. Wait for CI release workflow to finish (GitHub Release created automatically).
+5. Announce / share release notes (optionally generated via `--notes`).
+
+---
+
 ## Need help?
 
 If something feels unclear or brittle, add a note in `AGENTS.md` under “Parking lot” or open a discussion. We’re building this to support real people—tight feedback loops keep it trustworthy.

@@ -18,6 +18,26 @@
   - Local parity check: `scripts/validate_bundle_local.sh --version <X.Y.Z>` (compares structure vs published release; ignores `._*` forks)
   - Windows portable zip: generated automatically in CI (`Looplace.exe` + `assets/`); future Windows packaging script TBD.
 
+## Local release script
+Use `scripts/release.sh <patch|minor|major|X.Y.Z> [flags]` as a preflight helper (version bump + QA + tag). CI still produces the canonical release artifacts after the tag is pushed.
+
+Common:
+- Tag & push patch: `scripts/release.sh patch --push`
+- Preview minor bump w/ notes (no tag): `scripts/release.sh minor --notes --metadata-json --no-tag`
+- Mac bundle + parity check vs last: `scripts/release.sh patch --package-macos --validate-against last`
+- Fast dry-run: `scripts/release.sh patch --fast --dry-run`
+
+Key flags (additive):
+- `--fast` (skip tests, QA, audit)
+- `--no-tests`, `--no-qa`, `--no-audit`, `--no-readme`
+- `--notes`, `--diff`, `--metadata-json`, `--changelog`
+- `--package-macos` / `--bundle`, `--package-windows`, `--package-all`
+- `--validate-against <version|last>`
+- `--sign-identity <ID>`
+- `--allow-dirty`, `--allow-non-main`, `--no-tag`, `--push`
+
+macOS packaging uses the same bundler as CI; Windows build is a convenience (artifact still produced authoritatively in CI).
+
 ## CI snapshot
 - `Build (Desktop)`: macOS Apple Silicon `.app` bundle + Windows x64 zip on every push/PR (now both use canonical macOS bundler script).
 - `Release (Desktop)`: tagged builds publish both artifacts to GitHub Releases.
