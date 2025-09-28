@@ -676,6 +676,8 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   else
     warn "Dry run: no repository changes or tags were created."
   fi
+  # Ensure dry run always exits 0 (avoiding trap marking success path as failure).
+  exit 0
 fi
 
 # End of file
