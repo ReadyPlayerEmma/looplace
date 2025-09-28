@@ -38,7 +38,11 @@ fn main() {
     LaunchBuilder::desktop()
         .with_cfg(
             Config::new()
-                .with_window(WindowBuilder::new().with_maximized(true))
+                .with_window(
+                    WindowBuilder::new()
+                        .with_title("Looplace")
+                        .with_maximized(true),
+                )
                 .with_resource_directory(resource_dir),
         )
         .launch(App);

@@ -64,6 +64,7 @@ macOS packaging uses the same bundler as CI; Windows build is a convenience (art
 ## Research + questions backlog
 - Record any Dioxus API changes or workarounds discovered mid-task.
 - Surface uncertainties about wiring 2-back metrics into the Results experience (trend charts, exports) early.
+- Windows desktop polish: research setting custom window title & icon for Dioxus 0.6.x (issue #5). Goals: (1) runtime window title “Looplace”, (2) window icon via `WindowBuilder::with_window_icon` (or current equivalent) loading a multi-size `.ico`, (3) executable/icon embedding for Explorer (e.g. `winres` or `.rc` file) so the binary itself shows the Looplace icon, (4) asset pipeline for generating a multi-resolution `.ico` (16/32/48/64/128/256) plus fallback PNG if needed, (5) confirm high-DPI & dark mode behavior. Output: step-by-step implementation plan, required crate additions, and verification checklist.
 
 ## Parking lot
 - Add TODO clarifications or follow-ups here as they emerge.
