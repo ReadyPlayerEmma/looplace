@@ -8,6 +8,7 @@ use futures_channel::mpsc::UnboundedSender;
 use futures_util::StreamExt;
 
 use crate::core::qc::QualityFlags;
+use crate::core::readiness::{self, Readiness};
 use crate::core::timing::InstantStamp;
 use crate::core::{format, platform, storage, timing};
 
@@ -28,6 +29,15 @@ pub fn PvtView() -> Element {
     let indicator_text = use_signal(|| "READY".to_string());
     let last_error = use_signal(|| Option::<String>::None);
     let focus_target = use_signal(|| Option::<Rc<MountedData>>::None);
+    // Readiness (cooldown advisory) – compute once per mount; updates after a run completes (on next mount for now).
+    let readiness_info = use_signal(|| match storage::load_summaries() {
+        Ok(mut records) => {
+            records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            let last = records.iter().find(|r| r.task == "pvt");
+            readiness::evaluate("pvt", last)
+        }
+        Err(_) => readiness::evaluate("pvt", None),
+    });
 
     let sender_slot: Rc<RefCell<Option<UnboundedSender<PvtEvent>>>> = Rc::new(RefCell::new(None));
     let sender_slot_for_loop = sender_slot.clone();
@@ -320,6 +330,19 @@ pub fn PvtView() -> Element {
                     }
                 }
             } else {
+                {
+                    let r: Readiness = readiness_info();
+                    rsx! {
+                        section { class: format!("task-card task-readiness {}", r.css_class()),
+                            h3 { "Run timing" }
+                            p {
+                                span { class: "task-readiness__status", "{r.status_label()}" }
+                                " — "
+                                span { class: "task-readiness__detail", "{r.detail_message()}" }
+                            }
+                        }
+                    }
+                }
                 section { class: "task-card task-card--instructions task-pvt__prelude",
                     // Hidden i18n marker to force re-render of instruction copy when locale changes
                     div { style: "display:none", "{_lang_marker}" }

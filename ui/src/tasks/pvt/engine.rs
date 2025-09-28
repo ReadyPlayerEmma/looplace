@@ -20,7 +20,7 @@ pub struct PvtConfig {
 impl Default for PvtConfig {
     fn default() -> Self {
         Self {
-            target_trials: 18,
+            target_trials: 20,
             min_iti_ms: 2_000,
             max_iti_ms: 10_000,
             max_response_ms: 1_000,

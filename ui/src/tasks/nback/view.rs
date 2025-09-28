@@ -7,6 +7,7 @@ use futures_util::StreamExt;
 
 use crate::core::format;
 use crate::core::qc::QualityFlags;
+use crate::core::readiness::{self, Readiness};
 use crate::core::{platform, storage, timing};
 
 use super::engine::{
@@ -31,6 +32,15 @@ pub fn NBackView() -> Element {
     let last_metrics = use_signal(|| Option::<NBackMetrics>::None);
     let last_error = use_signal(|| Option::<String>::None);
     let feedback_state = use_signal(|| Option::<FeedbackState>::None);
+    // Readiness (cooldown advisory) – compute once per mount; updates only after a run completes (page reload or future reactive trigger).
+    let readiness_info = use_signal(|| match storage::load_summaries() {
+        Ok(mut records) => {
+            records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            let last = records.iter().find(|r| r.task == "nback2");
+            readiness::evaluate("nback2", last)
+        }
+        Err(_) => readiness::evaluate("nback2", None),
+    });
 
     let sender_slot: Rc<RefCell<Option<UnboundedSender<NBackEvent>>>> = Rc::new(RefCell::new(None));
     let sender_slot_for_loop = sender_slot.clone();
@@ -304,6 +314,20 @@ pub fn NBackView() -> Element {
                     }
                 }
             } else {
+                // Readiness advisory banner (non-blocking)
+                {
+                    let r: Readiness = readiness_info();
+                    rsx! {
+                        section { class: format!("task-card task-readiness {}", r.css_class()),
+                            h3 { "Run timing" }
+                            p {
+                                span { class: "task-readiness__status", "{r.status_label()}" }
+                                " — "
+                                span { class: "task-readiness__detail", "{r.detail_message()}" }
+                            }
+                        }
+                    }
+                }
                 section { class: "task-card task-card--instructions task-nback__controls",
                     // Hidden i18n marker to force re-render of instruction copy when locale changes
                     div { style: "display:none", "{_lang_marker}" }

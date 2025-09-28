@@ -33,11 +33,13 @@ const MAIN_CSS_INLINE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "
 fn main() {
     let resource_dir = resolve_resource_dir();
 
-    // Increase default window size (~20% larger than a common 960x600 baseline → 1152x720).
-    // We extend the existing Config with a window builder specifying the inner size.
+    // (Temporarily disabled) Attempted to maximize window on launch.
+    // TODO: Reintroduce maximize once builder API confirmed for current dioxus-desktop version.
     LaunchBuilder::desktop()
         .with_cfg(
-            Config::new().with_resource_directory(resource_dir), // Removed explicit window sizing (was causing build/type issues). Use default size for now.
+            Config::new()
+                // .with_window(|w| w.with_maximized(true))
+                .with_resource_directory(resource_dir),
         )
         .launch(App);
 }
