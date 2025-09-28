@@ -1,0 +1,11 @@
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/audit@v1
+        with:
+          denyWarnings: false # let your .cargo/audit.toml control ignores
