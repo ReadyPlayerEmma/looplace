@@ -147,6 +147,7 @@ pub fn PvtView() -> Element {
                                         metrics_signal,
                                         indicator_signal,
                                         error_signal,
+                                        readiness_info,
                                     );
                                 }
                                 ResponseOutcome::Ignored => {}
@@ -180,6 +181,7 @@ pub fn PvtView() -> Element {
                                         metrics_signal,
                                         indicator_signal,
                                         error_signal,
+                                        readiness_info,
                                     );
                                 }
                                 ResponseOutcome::Ignored => {}
@@ -342,7 +344,7 @@ pub fn PvtView() -> Element {
                 section { class: "task-card task-card--instructions task-pvt__prelude",
                     // Hidden i18n marker to force re-render of instruction copy when locale changes
                     div { style: "display:none", "{_lang_marker}" }
-                    details { class: "task-instructions",
+                    details { open: true, class: "task-instructions",
                         summary { {crate::t!("pvt-how-summary")} }
                         ul { class: "task-instructions__list",
                             li { {crate::t!("pvt-how-step-wait")} }
@@ -352,7 +354,7 @@ pub fn PvtView() -> Element {
                         }
                     }
 
-                    div { class: "task-cta",
+                    div { class: "task-cta", style: "display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;",
                         button {
                             r#type: "button",
                             class: "button button--primary",
@@ -404,6 +406,7 @@ fn finalize_run(
     mut last_metrics: Signal<Option<PvtMetrics>>,
     mut indicator_text: Signal<String>,
     mut last_error: Signal<Option<String>>,
+    mut readiness_info: Signal<Readiness>,
 ) {
     if let Some(metrics) = engine.with(|eng| eng.metrics()) {
         qc_flags.with_mut(|flags| flags.mark_min_trials(metrics.meets_min_trial_requirement));
@@ -425,6 +428,15 @@ fn finalize_run(
         }
 
         last_metrics.set(Some(metrics));
+
+        // Refresh readiness advisory immediately so the banner reflects the new cooldown
+        // without requiring a remount or navigation.
+        if let Ok(mut records) = storage::load_summaries() {
+            records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            let last = records.iter().find(|r| r.task == "pvt");
+            let updated = readiness::evaluate("pvt", last);
+            readiness_info.set(updated);
+        }
     }
 }
 

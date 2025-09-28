@@ -187,6 +187,7 @@ pub fn NBackView() -> Element {
                                         practice_metrics,
                                         last_metrics,
                                         last_error,
+                                        readiness_info,
                                     );
                                 }
                                 AdvanceOutcome::Ignored => {}
@@ -327,7 +328,7 @@ pub fn NBackView() -> Element {
                 section { class: "task-card task-card--instructions task-nback__controls",
                     // Hidden i18n marker to force re-render of instruction copy when locale changes
                     div { style: "display:none", "{_lang_marker}" }
-                    details { class: "task-instructions",
+                    details { open: true, class: "task-instructions",
                         summary { {crate::t!("nback-how-summary")} }
                         ul { class: "task-instructions__list",
                             li { {crate::t!("nback-how-step-timing")} }
@@ -337,7 +338,7 @@ pub fn NBackView() -> Element {
                         }
                     }
 
-                    div { class: "task-cta",
+                    div { class: "task-cta", style: "display:flex; gap:0.75rem; flex-wrap:wrap;",
                         button {
                             class: "button button--accent",
                             onclick: move |_| send_event(NBackEvent::StartPractice),
@@ -402,6 +403,7 @@ fn finalize_run(
     mut practice_metrics: Signal<Option<NBackMetrics>>,
     mut last_metrics: Signal<Option<NBackMetrics>>,
     mut last_error: Signal<Option<String>>,
+    mut readiness_info: Signal<Readiness>,
 ) {
     match mode {
         RunMode::Practice => {
@@ -423,6 +425,14 @@ fn finalize_run(
                             last_error.set(None);
                         }
                         last_metrics.set(Some(metrics));
+
+                        // Refresh readiness advisory immediately so the cooldown banner updates
+                        if let Ok(mut records) = storage::load_summaries() {
+                            records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                            let last = records.iter().find(|r| r.task == "nback2");
+                            let updated = readiness::evaluate("nback2", last);
+                            readiness_info.set(updated);
+                        }
                     }
                     Err(err) => {
                         last_error.set(Some(format!("Failed to serialise metrics: {err}")));
