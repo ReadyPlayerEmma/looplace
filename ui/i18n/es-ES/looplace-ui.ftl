@@ -113,7 +113,7 @@ nback-practice-metrics = Aciertos { $hits } / { $targets } • Falsas alarmas { 
 # $rt – tiempo de reacción formateado
 nback-practice-median-hit-rt = RT mediana de aciertos { $rt }
 nback-last-session = Última sesión principal
-nback-metrics-placeholder = Las métricas aparecerán tras la primera sesión principal completa.
+nback-metrics-placeholder = Las métricas aparecerán tras la primera sesión completa.
 nback-metric-hits = Aciertos
 nback-metric-misses = Fallos
 nback-metric-false-alarms = Falsas alarmas
