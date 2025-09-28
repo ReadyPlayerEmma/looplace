@@ -268,47 +268,44 @@ mod tests {
 
     #[test]
     fn metrics_count_hits_and_false_alarms() {
-        let mut trials = Vec::new();
-
-        trials.push(NBackTrial {
-            index: 0,
-            letter: 'A',
-            is_target: false,
-            is_lure: false,
-            presented_at: None,
-            response: None,
-            outcome: TrialOutcome::CorrectRejection,
-        });
-
-        trials.push(NBackTrial {
-            index: 1,
-            letter: 'B',
-            is_target: false,
-            is_lure: false,
-            presented_at: None,
-            response: None,
-            outcome: TrialOutcome::FalseAlarm { rt_ms: 420.0 },
-        });
-
-        trials.push(NBackTrial {
-            index: 2,
-            letter: 'C',
-            is_target: true,
-            is_lure: false,
-            presented_at: None,
-            response: None,
-            outcome: TrialOutcome::Hit { rt_ms: 480.0 },
-        });
-
-        trials.push(NBackTrial {
-            index: 3,
-            letter: 'D',
-            is_target: true,
-            is_lure: false,
-            presented_at: None,
-            response: None,
-            outcome: TrialOutcome::Miss,
-        });
+        let trials = vec![
+            NBackTrial {
+                index: 0,
+                letter: 'A',
+                is_target: false,
+                is_lure: false,
+                presented_at: None,
+                response: None,
+                outcome: TrialOutcome::CorrectRejection,
+            },
+            NBackTrial {
+                index: 1,
+                letter: 'B',
+                is_target: false,
+                is_lure: false,
+                presented_at: None,
+                response: None,
+                outcome: TrialOutcome::FalseAlarm { rt_ms: 420.0 },
+            },
+            NBackTrial {
+                index: 2,
+                letter: 'C',
+                is_target: true,
+                is_lure: false,
+                presented_at: None,
+                response: None,
+                outcome: TrialOutcome::Hit { rt_ms: 480.0 },
+            },
+            NBackTrial {
+                index: 3,
+                letter: 'D',
+                is_target: true,
+                is_lure: false,
+                presented_at: None,
+                response: None,
+                outcome: TrialOutcome::Miss,
+            },
+        ];
 
         let metrics = NBackMetrics::from_trials(&trials);
         assert_eq!(metrics.total_trials, 4);

@@ -474,10 +474,10 @@ fn build_csv(records: &[SummaryRecord]) -> String {
                     m.time_on_task_slope_ms_per_min.to_string(),
                 ]);
             } else {
-                row.extend(std::iter::repeat(String::new()).take(5));
+                row.extend(std::iter::repeat_n(String::new(), 5));
             }
         } else {
-            row.extend(std::iter::repeat(String::new()).take(5));
+            row.extend(std::iter::repeat_n(String::new(), 5));
         }
 
         // NBack (7)
@@ -493,10 +493,10 @@ fn build_csv(records: &[SummaryRecord]) -> String {
                     m.correct_rejections.to_string(),
                 ]);
             } else {
-                row.extend(std::iter::repeat(String::new()).take(7));
+                row.extend(std::iter::repeat_n(String::new(), 7));
             }
         } else {
-            row.extend(std::iter::repeat(String::new()).take(7));
+            row.extend(std::iter::repeat_n(String::new(), 7));
         }
 
         // Tail (5)
@@ -1341,7 +1341,7 @@ impl SnapshotOverview {
         let latest_label = records
             .iter()
             .max_by(|a, b| a.created_at.cmp(&b.created_at))
-            .map(|record| format_timestamp(record));
+            .map(format_timestamp);
 
         let mut clean_refs: Vec<&SummaryRecord> = records
             .iter()

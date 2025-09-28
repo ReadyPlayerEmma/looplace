@@ -401,8 +401,10 @@ mod tests {
 
     #[test]
     fn generated_sequence_respects_two_back_constraints() {
-        let mut engine = NBackEngine::default();
-        engine.run_id = 42;
+        let engine = NBackEngine {
+            run_id: 42,
+            ..Default::default()
+        };
         let trials = engine.generate_trials(RunMode::Main);
 
         assert_eq!(trials.len(), engine.config.total_trials);

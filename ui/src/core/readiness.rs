@@ -108,7 +108,7 @@ impl Readiness {
                 let wait = self.wait_remaining_hours.unwrap_or(0.0);
                 let next = self
                     .next_recommended
-                    .map(|ts| format_rfc3339_compact(ts))
+                    .map(format_rfc3339_compact)
                     .unwrap_or_default();
                 format!(
                     "Last run {} ago • wait ~{} (next {next}).",
