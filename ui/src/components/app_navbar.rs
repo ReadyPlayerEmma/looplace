@@ -4,7 +4,6 @@ use dioxus::prelude::*;
 use once_cell::sync::OnceCell;
 
 // Navbar stylesheet (mirrors legacy Navbar so styling applies here too)
-const NAVBAR_CSS: Asset = asset!("/assets/styling/navbar.css");
 const NAVBAR_CSS_INLINE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/styling/navbar.css"
@@ -116,11 +115,8 @@ pub fn AppNavbar(children: Element) -> Element {
     let tagline = t!("tagline");
 
     rsx! {
-        // Include shared navbar stylesheet (and inline in release native)
-        document::Link { rel: "stylesheet", href: NAVBAR_CSS }
-        if cfg!(all(not(debug_assertions), not(target_arch = "wasm32"))) {
-            document::Style { "{NAVBAR_CSS_INLINE}" }
-        }
+        // Include embedded navbar stylesheet (always inline; no external file needed)
+        document::Style { "{NAVBAR_CSS_INLINE}" }
 
         header {
             id: "navbar",

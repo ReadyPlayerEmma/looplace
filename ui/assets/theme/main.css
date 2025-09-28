@@ -12,6 +12,25 @@
     --color-accent-hover: #1a54d6;
     --color-success: #34d399;
     --color-danger: #f87171;
+
+    /* Layout & spacing tokens */
+    --page-max-width: 960px;
+    --page-pad-top: 3rem;
+    --page-pad-x: 1.5rem;
+    --page-pad-bottom: 4rem;
+    --page-gap: 1.8rem;
+
+    /* Card tokens */
+    --card-radius: 20px;
+    --card-pad-y: 2.1rem;
+    --card-pad-x: 2rem;
+    --card-shadow: 0 24px 48px rgba(7, 10, 18, 0.34);
+
+    /* Compact (potential future override)
+       Usage idea: body.compact {} could redefine these. */
+    --card-radius-compact: 10px;
+    --card-pad-y-compact: 1.25rem;
+    --card-pad-x-compact: 1.125rem;
 }
 
 *,
@@ -32,401 +51,209 @@ body {
 
 a {
     color: var(--color-accent);
+    text-decoration: none;
 }
 
 a:hover {
     color: var(--color-accent-hover);
 }
 
+/* Basic layout helpers (kept minimal since most component styling lives in ui/) */
 .page {
-    max-width: 960px;
+    max-width: var(--page-max-width);
     margin: 0 auto;
-    padding: 3rem 1.5rem 4rem;
+    padding: var(--page-pad-top) var(--page-pad-x) var(--page-pad-bottom);
     display: flex;
     flex-direction: column;
-    gap: 2.5rem;
+    gap: var(--page-gap);
 }
 
 .page h1 {
-    font-size: 2.6rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    margin: 0;
-}
-
-.page > p {
-    margin: 0;
-    max-width: 720px;
-    color: var(--color-text-muted);
-    font-size: 1.05rem;
+    margin-top: 0;
+    font-size: 2rem;
+    letter-spacing: 0.5px;
 }
 
 .task {
     display: flex;
     flex-direction: column;
-    gap: 2.5rem;
+    gap: 1.25rem;
 }
 
 .task-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: 22px;
-    padding: 2.25rem;
-    box-shadow: 0 24px 48px rgba(7, 10, 18, 0.38);
-}
-
-.task-card--instructions {
-    background: linear-gradient(
-        165deg,
-        rgba(31, 104, 255, 0.08),
-        rgba(15, 17, 22, 0.9)
-    );
-    border-color: rgba(255, 255, 255, 0.05);
+    border-radius: var(--card-radius);
+    padding: var(--card-pad-y) var(--card-pad-x);
+    position: relative;
+    box-shadow: var(--card-shadow);
+    transition:
+        box-shadow 0.25s ease,
+        transform 0.25s ease;
 }
 
 .task-card--canvas {
-    position: relative;
-    min-height: 54vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1.5rem;
-    padding: 2.6rem 1.9rem;
-    background: radial-gradient(
-        120% 120% at 50% 10%,
-        rgba(31, 104, 255, 0.22),
-        rgba(15, 17, 22, 0.92)
-    );
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: var(--color-text);
-    overflow: hidden;
+    min-height: 340px;
 }
 
 .task-card--subtle {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    padding: 1.1rem 1.3rem;
-}
-
-.task-cta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.9rem;
-    align-items: center;
-}
-
-.task-guidance {
-    color: var(--color-text-muted);
-    font-size: 0.95rem;
-}
-
-.task-guidance--overlay {
-    position: absolute;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    text-align: center;
-    color: rgba(245, 247, 251, 0.78);
-    max-width: 360px;
-}
-
-.task-progress {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
-    color: rgba(245, 247, 251, 0.72);
-    text-transform: uppercase;
-    letter-spacing: 0.16rem;
-    font-size: 0.82rem;
-}
-
-.task-progress__value {
-    font-size: 1.15rem;
-    font-weight: 600;
-    letter-spacing: 0.12rem;
-}
-
-.task-progress--overlay {
-    position: absolute;
-    top: 1.5rem;
-    right: 1.5rem;
-}
-
-.task-mode-badge {
-    position: absolute;
-    bottom: 1.5rem;
-    left: 1.5rem;
-    padding: 0.45rem 1rem;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.32);
-    font-size: 0.78rem;
-    letter-spacing: 0.18rem;
-    text-transform: uppercase;
-    color: rgba(245, 247, 251, 0.82);
-    background: rgba(15, 17, 22, 0.55);
-    backdrop-filter: blur(6px);
+    background: var(--color-surface-strong);
 }
 
 .button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.75rem 1.75rem;
-    border-radius: 999px;
-    font-size: 1rem;
-    font-weight: 600;
+    font: inherit;
     cursor: pointer;
-    border: none;
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-strong);
+    color: var(--color-text);
+    padding: 0.55rem 1rem;
+    border-radius: 8px;
     transition:
-        transform 0.12s ease,
-        box-shadow 0.12s ease,
-        background-color 0.12s ease;
-    text-decoration: none;
-    color: inherit;
-    background: rgba(255, 255, 255, 0.08);
+        background 0.14s,
+        border-color 0.14s;
 }
 
-.button:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
+.button:hover {
+    background: var(--color-surface);
+    border-color: var(--color-border);
 }
 
 .button--primary {
-    background: var(--color-primary);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
     color: #fff;
-    box-shadow: 0 16px 32px rgba(240, 90, 126, 0.25);
 }
 
 .button--primary:hover {
-    background: var(--color-primary-hover);
-    transform: translateY(-1px);
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
 }
 
 .button--accent {
-    background: var(--color-accent);
+    background: var(--color-primary);
+    border-color: var(--color-primary);
     color: #fff;
-    box-shadow: 0 16px 32px rgba(31, 104, 255, 0.25);
 }
 
 .button--accent:hover {
-    background: var(--color-accent-hover);
-    transform: translateY(-1px);
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
 }
 
 .button--ghost {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--color-text);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: transparent;
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
 }
 
 .button--ghost:hover {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateY(-1px);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
 }
 
 .button--compact {
-    padding: 0.48rem 1.05rem;
-    font-size: 0.85rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
 }
 
-.task-canvas__cancel {
-    position: absolute;
-    top: 1.5rem;
-    left: 1.5rem;
-    z-index: 2;
-}
-
-.task-pvt__hitbox,
-.task-nback__hitbox {
-    position: absolute;
-    inset: 0;
-    display: flex;
+.task-progress {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    z-index: 1;
-}
-
-.task-pvt__indicator {
-    font-size: 6rem;
-    letter-spacing: 0.2rem;
-    font-family: "JetBrains Mono", "Fira Mono", monospace;
-    color: var(--color-text);
-    transition: color 0.2s ease;
-}
-
-.task-pvt__indicator--waiting {
-    color: rgba(245, 247, 251, 0.7);
-}
-
-.task-pvt__indicator--armed {
-    color: var(--color-primary);
-}
-
-.task-nback__glyph {
-    font-size: 8rem;
-    font-weight: 700;
-    letter-spacing: 0.18rem;
-    font-family: "Poppins", "Inter", sans-serif;
-    color: var(--color-text);
-}
-
-.task-nback__glyph span {
-    font-size: 1.1rem;
-    letter-spacing: 0.08rem;
-    color: rgba(245, 247, 251, 0.7);
-}
-
-.task-feedback {
-    position: absolute;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 0.65rem 1.3rem;
-    border-radius: 999px;
-    font-weight: 600;
-    letter-spacing: 0.04rem;
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(6px);
-}
-
-.task-feedback--positive {
-    background: rgba(52, 211, 153, 0.92);
-    color: #041217;
-}
-
-.task-feedback--negative {
-    background: rgba(248, 113, 113, 0.94);
-    color: #041217;
-}
-
-.task-instructions {
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 1rem 1.25rem;
-}
-
-.task-instructions summary {
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-    font-weight: 600;
-    color: var(--color-text);
-    list-style: none;
-}
-
-.task-instructions summary::-webkit-details-marker {
-    display: none;
-}
-
-.task-instructions summary::after {
-    content: "+";
-    font-size: 1.2rem;
-    line-height: 1;
-    color: var(--color-text-muted);
-    transition:
-        transform 0.2s ease,
-        color 0.2s ease;
-}
-
-.task-instructions summary:hover::after {
-    color: var(--color-text);
-}
-
-details[open] > summary::after {
-    content: "–";
-}
-
-.task-instructions__list {
-    padding-left: 1.2rem;
-    margin: 0.75rem 0 0;
-    display: flex;
-    flex-direction: column;
     gap: 0.4rem;
+    font-size: 0.8rem;
     color: var(--color-text-muted);
+}
+
+.task-progress__value {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.task-metrics--placeholder,
+.task-nback__metrics.task-metrics--placeholder {
+    opacity: 0.65;
+    font-style: italic;
 }
 
 .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 0.75rem;
     list-style: none;
     padding: 0;
-    margin: 0;
+    margin: 0.25rem 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.35rem 0.75rem;
+    font-size: 0.8rem;
 }
 
 .metrics-grid li {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 14px;
-    padding: 0.8rem 1rem;
-    font-weight: 500;
-    color: var(--color-text);
-}
-
-.task-metrics--placeholder p {
-    margin: 0;
-    color: var(--color-text-muted);
+    line-height: 1.3;
 }
 
 .task-error {
+    margin-top: 0.75rem;
     color: var(--color-danger);
+    font-size: 0.85rem;
     font-weight: 600;
 }
 
-.task-nback__controls,
-.task-pvt__prelude {
+/* Readiness advisory styling */
+.task-readiness {
     display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+    align-items: center;
+    gap: 0.55rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--color-border-strong);
+    border-left: 4px solid transparent;
+    border-radius: 10px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.78rem;
+    line-height: 1.3;
 }
 
-.task-nback__practice-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+.task-readiness--early {
+    border-color: rgba(255, 200, 80, 0.25);
+    background: rgba(255, 200, 80, 0.1);
+    border-left-color: rgba(255, 200, 80, 0.85);
+    box-shadow: none;
 }
 
-.task-nback__practice-summary h3 {
-    margin: 0 0 0.5rem;
-    font-size: 0.95rem;
-    letter-spacing: 0.12rem;
-    text-transform: uppercase;
-    color: rgba(245, 247, 251, 0.78);
+.task-readiness--ready {
+    border-color: rgba(52, 211, 153, 0.25);
+    background: rgba(52, 211, 153, 0.1);
+    border-left-color: rgba(52, 211, 153, 0.85);
+    box-shadow: none;
 }
 
-.task-nback__practice-summary p {
-    margin: 0;
-    color: var(--color-text-muted);
-}
-
-.task-card h3 {
-    margin-top: 0;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
+.task-readiness__status {
+    font-weight: 600;
     letter-spacing: 0.05rem;
     text-transform: uppercase;
-    color: rgba(245, 247, 251, 0.78);
+    font-size: 0.72rem;
 }
 
-.page-results {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
+.task-readiness__detail {
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
 }
+
+/* Utility */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    margin: -1px;
+    padding: 0;
+    clip: rect(0 0 0 0);
+    border: 0;
+}
+
+/* Ensure embedded styles remain obvious for future maintenance */
+
+/* ===== Results Page Styling (parity with web build) ===== */
 
 .results__header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
     gap: 1rem;
 }
@@ -508,6 +335,8 @@ details[open] > summary::after {
     margin: 0;
     color: var(--color-text-muted);
 }
+
+/* List panel */
 
 .results-list__items {
     list-style: none;
@@ -620,6 +449,8 @@ details[open] > summary::after {
     color: rgba(245, 247, 251, 0.6);
 }
 
+/* Detail panel */
+
 .results-detail__summary {
     display: flex;
     flex-direction: column;
@@ -706,6 +537,8 @@ details[open] > summary::after {
     color: var(--color-text-muted);
     font-size: 0.85rem;
 }
+
+/* Highlights & charts */
 
 .results-highlights {
     display: grid;
@@ -828,6 +661,8 @@ details[open] > summary::after {
     color: var(--color-text-muted);
 }
 
+/* Export summary/actions */
+
 .results-export__summary {
     list-style: none;
     padding: 0;
@@ -860,43 +695,17 @@ details[open] > summary::after {
     gap: 0.75rem;
 }
 
+/* Responsive adjustments */
+
 @media (max-width: 720px) {
     .page {
         padding: 2.5rem 1.1rem 3rem;
         gap: 2rem;
     }
 
-    .page h1 {
-        font-size: 2.1rem;
-    }
-
     .task-card {
         padding: 1.75rem;
-    }
-
-    .task-card--canvas {
-        min-height: 48vh;
-        padding: 2.1rem 1.35rem;
-    }
-
-    .task-pvt__indicator {
-        font-size: 4.4rem;
-    }
-
-    .task-nback__glyph {
-        font-size: 5.5rem;
-    }
-
-    .task-progress--overlay,
-    .task-mode-badge,
-    .task-canvas__cancel {
-        top: 1.15rem;
-        right: 1.15rem;
-        left: 1.15rem;
-    }
-
-    .task-guidance--overlay {
-        bottom: 1.5rem;
+        border-radius: 16px;
     }
 
     .results__header {

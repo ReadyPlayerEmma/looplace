@@ -27,8 +27,10 @@ enum Route {
     Results {},
 }
 
-const MAIN_CSS: Asset = asset!("/assets/main.css");
-const MAIN_CSS_INLINE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/main.css"));
+const MAIN_CSS_INLINE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../ui/assets/theme/main.css"
+)); // Embedded shared theme (ui/assets/theme/main.css); no separate desktop /assets needed.
 
 #[cfg(feature = "desktop")]
 fn main() {
@@ -95,11 +97,8 @@ fn App() -> Element {
 
     rsx! {
         // Global app resources
-        document::Link { rel: "stylesheet", href: MAIN_CSS }
-
-        if cfg!(not(debug_assertions)) {
-            document::Style { "{MAIN_CSS_INLINE}" }
-        }
+        // Always inline embedded CSS (no external file dependency for desktop builds)
+        document::Style { "{MAIN_CSS_INLINE}" }
 
         // Key the routed subtree by current language to force full remount on change
         // Hidden marker keeps explicit reactive dependency (optional)

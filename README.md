@@ -29,6 +29,7 @@ Our goal is to keep the tools approachable while layering in richer analysis: jo
 
 - **Desktop (focus)**: macOS and Windows via the `desktop/` launcher.
 - Web SPA and mobile shells remain available for contributors; Cloudflare Pages deploys are currently paused.
+- **Embedded assets (desktop)**: All core UI CSS is now embedded in the binary (no external stylesheet files required on Windows). This keeps the portable Windows zip minimal (just the executable, plus future embedded icon metadata) and reduces the chance of missing asset issues.
 
 ---
 

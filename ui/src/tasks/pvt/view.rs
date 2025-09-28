@@ -333,13 +333,9 @@ pub fn PvtView() -> Element {
                 {
                     let r: Readiness = readiness_info();
                     rsx! {
-                        section { class: format!("task-card task-readiness {}", r.css_class()),
-                            h3 { "Run timing" }
-                            p {
-                                span { class: "task-readiness__status", "{r.status_label()}" }
-                                " — "
-                                span { class: "task-readiness__detail", "{r.detail_message()}" }
-                            }
+                        section { class: format!("task-readiness {}", r.css_class()),
+                            span { class: "task-readiness__status", "{r.status_label()}" }
+                            span { class: "task-readiness__detail", "{r.detail_message()}" }
                         }
                     }
                 }

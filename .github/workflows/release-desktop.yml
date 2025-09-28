@@ -71,9 +71,7 @@ jobs:
           Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
           New-Item $dest -ItemType Directory | Out-Null
           Copy-Item $build (Join-Path $dest ${{ matrix.bin }})
-          if (Test-Path "desktop/assets") {
-            Copy-Item "desktop/assets" (Join-Path $dest "assets") -Recurse
-          }
+          # UI assets (CSS/etc) embedded; no asset directory copy needed
           Rename-Item (Join-Path $dest ${{ matrix.bin }}) "Looplace.exe"
           Compress-Archive -Path $dest -DestinationPath (Join-Path "dist" "$out.zip") -Force
       - name: Compute checksum (Windows)

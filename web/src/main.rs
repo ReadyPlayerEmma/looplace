@@ -19,7 +19,7 @@ enum Route {
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-const MAIN_CSS: Asset = asset!("/assets/main.css");
+const MAIN_CSS: Asset = asset!("/assets/main.css"); // NOTE: Currently referencing the web copy for HTTP caching. Planned future switch to unified shared theme (ui/assets/theme/main.css) once cache + versioning strategy is in place.
 
 fn nav_home(label: &str) -> Element {
     rsx!(Link {
