@@ -16,16 +16,11 @@ ignore = [
   "RUSTSEC-2024-0420", # gtk-sys
   "RUSTSEC-2024-0429", # glib VariantStrIter unsoundness
 ]
+# hide info-only chatter (unmaintained/yanked/notice)
+# informational_warnings = ["yanked", "unmaintained", "notice"]
 
-# Control which “informational” categories are printed.
-# Use [] to hide them entirely, or e.g. ["yanked"] to only show yanked.
-informational_warnings = []
-# alternatives:
-# informational_warnings = ["yanked"]
-# informational_warnings = ["unmaintained","yanked","notice"]  # default-ish
-
+# Limit advisories platforms we ship
 [target]
-# Limit advisories to your shipping platforms
 os   = ["macos", "windows"]
 arch = ["aarch64", "x86_64"]
 
