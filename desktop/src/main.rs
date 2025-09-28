@@ -40,7 +40,7 @@ fn main() {
             Config::new()
                 .with_window(
                     WindowBuilder::new()
-                        .with_title("Looplace")
+                        .with_title(format!("Looplace – v{}", env!("CARGO_PKG_VERSION")))
                         .with_maximized(true),
                 )
                 .with_resource_directory(resource_dir),
