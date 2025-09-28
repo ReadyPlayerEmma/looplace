@@ -19,6 +19,7 @@
     --page-pad-x: 1.5rem;
     --page-pad-bottom: 4rem;
     --page-gap: 1.8rem;
+    --font-size-page-title: 2.1rem;
 
     /* Card tokens */
     --card-radius: 20px;
@@ -70,7 +71,7 @@ a:hover {
 
 .page h1 {
     margin-top: 0;
-    font-size: 2rem;
+    font-size: var(--font-size-page-title);
     letter-spacing: 0.5px;
 }
 
@@ -260,7 +261,7 @@ a:hover {
 
 .results__header h1 {
     margin: 0;
-    font-size: 2.3rem;
+    font-size: var(--font-size-page-title);
 }
 
 .results__intro {
@@ -438,6 +439,21 @@ a:hover {
     margin: 1.1rem 0 0;
     font-size: 0.95rem;
     color: var(--color-text-muted);
+}
+
+/* Task page heading spacing (PVT & N-back) */
+.page-pvt > h1,
+.page-nback > h1 {
+    margin: 0 0 0.5rem;
+}
+
+/* First intro paragraph under task headings */
+.page-pvt > p:first-of-type,
+.page-nback > p:first-of-type {
+    margin: 0;
+    max-width: 760px;
+    color: var(--color-text-muted);
+    line-height: 1.5;
 }
 
 .results-list__timestamp {
