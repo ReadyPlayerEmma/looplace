@@ -1,4 +1,5 @@
 # Looplace
+[![Version](https://img.shields.io/badge/version-0.1.7-orange.svg)](https://github.com/ReadyPlayerEmma/looplace/releases) [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](./LICENSE) [![Localization](https://img.shields.io/badge/i18n-en--US%20|%20es--ES%20|%20fr--FR-blue)](#localization) [![Built with Dioxus](https://img.shields.io/badge/built%20with-dioxus-6A5ACD.svg)](https://dioxuslabs.com)
 
 Small loops • clear minds.
 Looplace is a cross-platform cognitive testing app built with **Rust** and **Dioxus**. Today we prioritise a desktop-first experience (macOS/Windows) while keeping the shared web and mobile shells available for contributors. Back-end work will land as **Dioxus server functions** (Axum under the hood), with an eventual Cloudflare Workers + D1 deployment path.
