@@ -344,14 +344,12 @@ pub fn PvtView() -> Element {
                 section { class: "task-card task-card--instructions task-pvt__prelude",
                     // Hidden i18n marker to force re-render of instruction copy when locale changes
                     div { style: "display:none", "{_lang_marker}" }
-                    details { open: true, class: "task-instructions",
-                        summary { {crate::t!("pvt-how-summary")} }
-                        ul { class: "task-instructions__list",
-                            li { {crate::t!("pvt-how-step-wait")} }
-                            li { {crate::t!("pvt-how-step-respond")} }
-                            li { {crate::t!("pvt-how-step-jitter")} }
-                            li { {crate::t!("pvt-how-step-target", trials = total_target)} }
-                        }
+                    h3 { {crate::t!("pvt-how-summary")} }
+                    ul {
+                        li { {crate::t!("pvt-how-step-wait")} }
+                        li { {crate::t!("pvt-how-step-respond")} }
+                        li { {crate::t!("pvt-how-step-jitter")} }
+                        li { {crate::t!("pvt-how-step-target", trials = total_target)} }
                     }
 
                     div { class: "task-cta", style: "display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center;",

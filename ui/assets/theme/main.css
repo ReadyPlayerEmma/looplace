@@ -42,6 +42,104 @@
     box-sizing: border-box;
 }
 
+/* Task canvas & interactive test styles (restored from web build for PVT & N-back) */
+.task-canvas__cancel {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    z-index: 2;
+}
+
+.task-pvt__hitbox,
+.task-nback__hitbox {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.task-pvt__indicator {
+    font-size: 6rem;
+    letter-spacing: 0.2rem;
+    font-family: "JetBrains Mono", "Fira Mono", monospace;
+    color: var(--color-text);
+    transition: color 0.2s ease;
+}
+
+.task-pvt__indicator--waiting {
+    color: rgba(245, 247, 251, 0.8);
+}
+
+.task-pvt__indicator--armed {
+    color: var(--color-primary);
+}
+
+.task-nback__glyph {
+    font-size: 8rem;
+    font-weight: 700;
+    letter-spacing: 0.18rem;
+    font-family: "Poppins", "Inter", sans-serif;
+    color: var(--color-text);
+}
+
+.task-nback__glyph span {
+    font-size: 1.1rem;
+    letter-spacing: 0.08rem;
+    color: rgba(245, 247, 251, 0.7);
+}
+
+.task-feedback {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.65rem 1.3rem;
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.04rem;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+}
+
+.task-feedback--positive {
+    background: rgba(52, 211, 153, 0.92);
+    color: #041217;
+}
+
+.task-feedback--negative {
+    background: rgba(248, 113, 113, 0.94);
+    color: #041217;
+}
+
+/* (Removed) Legacy task instructions panel wrapper */
+
+/* (Removed) Collapsible summary styling */
+
+/* (Removed) details marker reset */
+
+/* (Removed) summary toggle indicator */
+
+/* (Removed) hover indicator color */
+
+/* (Removed) open state indicator */
+
+/* (Removed) legacy instructions list styling (now plain list within card) */
+
+.task-card h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    letter-spacing: 0.05rem;
+    text-transform: uppercase;
+    color: rgba(245, 247, 251, 0.78);
+}
+
 body {
     margin: 0;
     min-height: 100vh;
@@ -161,15 +259,60 @@ a:hover {
 }
 
 .task-progress {
-    display: inline-flex;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
+    gap: 0.35rem;
+    color: rgba(245, 247, 251, 0.72);
+    text-transform: uppercase;
+    letter-spacing: 0.16rem;
+    font-size: 0.82rem;
+}
+
+/* Overlay (absolute) variant used inside active task canvas */
+.task-progress--overlay {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+}
+
+/* Mode badge for N-back (practice/main) */
+.task-mode-badge {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    font-size: 0.78rem;
+    letter-spacing: 0.18rem;
+    text-transform: uppercase;
+    color: rgba(245, 247, 251, 0.82);
+    backdrop-filter: blur(6px);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* Guidance text (generic) */
+.task-guidance {
     color: var(--color-text-muted);
+    font-size: 0.95rem;
+}
+
+/* Centered bottom overlay guidance (e.g. PVT WAIT / HOLD STEADY style) */
+.task-guidance--overlay {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    color: rgba(245, 247, 251, 0.78);
+    max-width: 360px;
 }
 
 .task-progress__value {
+    font-size: 1.15rem;
     font-weight: 600;
+    letter-spacing: 0.12rem;
     color: var(--color-text);
 }
 
@@ -840,5 +983,30 @@ a:hover {
     .results-chart__footer {
         flex-direction: column;
         gap: 0.4rem;
+    }
+
+    /* Responsive tweaks for overlay/task HUD elements */
+    .task-progress--overlay {
+        top: 1rem;
+        right: 1rem;
+    }
+
+    .task-mode-badge {
+        bottom: 1rem;
+        left: 1rem;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.14rem;
+    }
+
+    .task-guidance--overlay {
+        bottom: 1.5rem;
+        max-width: 300px;
+        padding: 0 0.5rem;
+    }
+
+    .task-canvas__cancel {
+        top: 1rem;
+        left: 1rem;
     }
 }

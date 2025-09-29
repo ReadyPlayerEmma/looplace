@@ -328,14 +328,12 @@ pub fn NBackView() -> Element {
                 section { class: "task-card task-card--instructions task-nback__controls",
                     // Hidden i18n marker to force re-render of instruction copy when locale changes
                     div { style: "display:none", "{_lang_marker}" }
-                    details { open: true, class: "task-instructions",
-                        summary { {crate::t!("nback-how-summary")} }
-                        ul { class: "task-instructions__list",
-                            li { {crate::t!("nback-how-step-timing")} }
-                            li { {crate::t!("nback-how-step-rule")} }
-                            li { {crate::t!("nback-how-step-practice")} }
-                            li { {crate::t!("nback-how-step-strategy")} }
-                        }
+                    h3 { {crate::t!("nback-how-summary")} }
+                    ul {
+                        li { {crate::t!("nback-how-step-timing")} }
+                        li { {crate::t!("nback-how-step-rule")} }
+                        li { {crate::t!("nback-how-step-practice")} }
+                        li { {crate::t!("nback-how-step-strategy")} }
                     }
 
                     div { class: "task-cta", style: "display:flex; gap:0.75rem; flex-wrap:wrap;",
