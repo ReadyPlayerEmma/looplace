@@ -1,11 +1,32 @@
 use crate::{
-    core::{format, storage::SummaryRecord},
+    core::{
+        format,
+        storage::{delete_summary, SummaryRecord},
+    },
     results::{
         format_device, format_timestamp, parse_nback_metrics, parse_pvt_metrics, qc_summary,
         task_label, ResultsState,
     },
 };
 use dioxus::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+fn confirm_delete_prompt() -> bool {
+    web_sys::window()
+        .and_then(|w| {
+            w.confirm_with_message("Delete this run permanently? This cannot be undone.")
+                .ok()
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn confirm_delete_prompt() -> bool {
+    // Desktop (native) path: simple inline confirmation via stderr + always delete.
+    // TODO: Replace with a custom in-app modal if stronger confirmation UX is desired.
+    // For now we proceed without an interactive block dialog.
+    true
+}
 
 #[component]
 pub fn ResultsList(results: Signal<ResultsState>, selected_id: Signal<Option<String>>) -> Element {
@@ -56,7 +77,7 @@ pub fn ResultsList(results: Signal<ResultsState>, selected_id: Signal<Option<Str
             } else {
                 ul { class: "results-list__items",
                     for entry in entries.into_iter() {
-                        {render_list_entry(entry, selected_id)}
+                        {render_list_entry(entry, selected_id, results)}
                     }
                 }
             }
@@ -75,7 +96,11 @@ struct ListEntry {
     device: Option<String>,
 }
 
-fn render_list_entry(entry: ListEntry, mut selected_id: Signal<Option<String>>) -> Element {
+fn render_list_entry(
+    entry: ListEntry,
+    mut selected_id: Signal<Option<String>>,
+    mut results: Signal<ResultsState>,
+) -> Element {
     let ListEntry {
         id,
         is_active,
@@ -88,35 +113,60 @@ fn render_list_entry(entry: ListEntry, mut selected_id: Signal<Option<String>>) 
 
     let button_id = id.clone();
 
+    let delete_id = id.clone();
     rsx! {
         li { class: format!(
                 "results-list__item {}",
                 if is_active { "results-list__item--active" } else { "" }
             ),
-            button {
-                r#type: "button",
-                class: "results-list__button",
-                onclick: move |_| selected_id.set(Some(button_id.clone())),
+            div { class: "results-list__row", style: "position:relative;",
+                button {
+                    r#type: "button",
+                    class: "results-list__button",
+                    onclick: move |_| selected_id.set(Some(button_id.clone())),
 
-                span { class: "results-list__heading",
-                    span { class: "results-list__task", "{task_label}" }
-                    span { class: "results-list__timestamp", "{timestamp}" }
-                }
+                    span { class: "results-list__heading",
+                        span { class: "results-list__task", "{task_label}" }
+                        span { class: "results-list__timestamp", "{timestamp}" }
+                    }
 
-                if let Some(device_label) = device.as_ref() {
-                    span { class: "results-list__device", "{device_label}" }
-                }
+                    if let Some(device_label) = device.as_ref() {
+                        span { class: "results-list__device", "{device_label}" }
+                    }
 
-                div { class: "results-list__metrics",
-                    for (label, value) in metrics.iter() {
-                        span { class: "results-list__metric",
-                            span { class: "results-list__metric-label", "{label}" }
-                            span { class: "results-list__metric-value", "{value}" }
+                    div { class: "results-list__metrics",
+                        for (label, value) in metrics.iter() {
+                            span { class: "results-list__metric",
+                                span { class: "results-list__metric-label", "{label}" }
+                                span { class: "results-list__metric-value", "{value}" }
+                            }
                         }
                     }
-                }
 
-                span { class: "results-list__qc", "{qc}" }
+                    span { class: "results-list__qc", "{qc}" }
+                }
+                button {
+                    r#type: "button",
+                    class: "results-list__delete",
+                    style: "position:absolute;bottom:0.5rem;right:0.5rem;padding:0.35rem 0.4rem;margin:0;border:none;background:transparent;cursor:pointer;",
+                    aria_label: "Delete run",
+                    onclick: move |_| {
+                        if !confirm_delete_prompt() {
+                            return;
+                        }
+                        if delete_summary(&delete_id).unwrap_or(false) {
+                            results.set(ResultsState::load());
+                            if selected_id().as_ref().map(|x| x == &delete_id).unwrap_or(false) {
+                                let state_now = results();
+                                if let Some(first) = state_now.records.first() {
+                                    selected_id.set(Some(first.id.clone()));
+                                } else {
+                                    selected_id.set(None);
+                                }
+                            }
+                        }
+                    },
+                }
             }
         }
     }

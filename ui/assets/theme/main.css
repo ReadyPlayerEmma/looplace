@@ -367,6 +367,51 @@ a:hover {
     box-shadow: 0 18px 36px rgba(240, 90, 126, 0.16);
 }
 
+.results-list__row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.results-list__delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0.25rem;
+    margin: 0;
+    border-radius: 6px;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
+}
+
+.results-list__delete:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.results-list__delete:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.results-list__delete::before {
+    /* Replaces emoji with a monochrome line-art trash icon via mask */
+    content: "";
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    background: currentColor;
+    -webkit-mask: no-repeat center / contain;
+    mask: no-repeat center / contain;
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" stroke="%23fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/></svg>');
+    mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" stroke="%23fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/></svg>');
+}
+
 .results-list__button {
     width: 100%;
     border: none;

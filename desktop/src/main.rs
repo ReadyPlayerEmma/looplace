@@ -33,6 +33,21 @@ const MAIN_CSS_INLINE: &str = include_str!(concat!(
 
 #[cfg(feature = "desktop")]
 fn main() {
+    // Relocate WebView2 user data folder to OS app data dir so the install folder stays clean.
+    // Done early so WebView2 picks it up before the webview environment is created.
+    #[cfg(windows)]
+    {
+        use std::path::PathBuf;
+        if let Some(base) = std::env::var_os("LOCALAPPDATA") {
+            let mut dir = PathBuf::from(base);
+            dir.push("Looplace");
+            dir.push("webview2");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &dir);
+            }
+        }
+    }
+
     let resource_dir = resolve_resource_dir();
 
     // Maximize window on launch (dioxus-desktop 0.6.x: pass a WindowBuilder value)

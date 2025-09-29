@@ -109,6 +109,22 @@ pub fn append_summary(summary: &SummaryRecord) -> Result<(), StorageError> {
     save_all(&records)
 }
 
+/// Delete a single summary by its id.
+///
+/// Returns:
+/// - Ok(true)  if a record with the given id was found and removed (and persistence updated)
+/// - Ok(false) if no record matched (no write performed)
+pub fn delete_summary(id: &str) -> Result<bool, StorageError> {
+    let mut records = load_summaries()?;
+    let before = records.len();
+    records.retain(|r| r.id != id);
+    let deleted = records.len() != before;
+    if deleted {
+        save_all(&records)?;
+    }
+    Ok(deleted)
+}
+
 pub fn save_all(records: &[SummaryRecord]) -> Result<(), StorageError> {
     #[cfg(target_arch = "wasm32")]
     {

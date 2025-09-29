@@ -333,6 +333,27 @@ pub fn ResultsExportPanel(records: Vec<SummaryRecord>) -> Element {
         }
     };
 
+    let open_dir_handler = {
+        let mut status_signal = status;
+        move |_| {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                match open_exports_directory() {
+                    Ok(path) => status_signal.set(ExportStatus::Done(format!(
+                        "Opened exports folder ({path})"
+                    ))),
+                    Err(err) => status_signal.set(ExportStatus::Error(err)),
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                status_signal.set(ExportStatus::Error(
+                    "Opening folder not available in browser".to_string(),
+                ));
+            }
+        }
+    };
+
     rsx! {
         section { class: "results-card results-export",
             div { class: "results-card__header",
@@ -373,6 +394,13 @@ pub fn ResultsExportPanel(records: Vec<SummaryRecord>) -> Element {
                         disabled: busy(),
                         onclick: png_handler,
                         "Export PNG"
+                    }
+                    button {
+                        r#type: "button",
+                        class: "button button--ghost",
+                        disabled: busy(),
+                        onclick: open_dir_handler,
+                        "Open Exports Location"
                     }
                 }
 
@@ -632,6 +660,35 @@ fn desktop_export_dir() -> Result<std::path::PathBuf, String> {
     let dirs = directories::ProjectDirs::from("com", "Looplace", "Looplace")
         .ok_or("Unable to determine export directory")?;
     Ok(dirs.data_dir().join("exports"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_exports_directory() -> Result<String, String> {
+    let dir = desktop_export_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path_display = dir.to_string_lossy().to_string();
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(path_display)
 }
 
 async fn build_png_snapshot(records: &[SummaryRecord]) -> Result<Vec<u8>, String> {
