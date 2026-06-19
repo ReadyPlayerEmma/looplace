@@ -9,7 +9,7 @@ use time::{OffsetDateTime, PrimitiveDateTime};
 
 use looplace_libre::records::{Annotations, GlucoseSource, Reading};
 
-use crate::error::Result;
+use crate::error::{Result, StoreError};
 use crate::observation::Observation;
 
 /// Convert a Libre [`Reading`] into an [`Observation`]. `source` is the device
@@ -86,9 +86,31 @@ pub struct CognitionSummary {
     pub metrics: serde_json::Value,
 }
 
-/// Parse the legacy `summaries.json` array.
-pub fn summaries_from_json(json: &str) -> Result<Vec<CognitionSummary>> {
-    Ok(serde_json::from_str(json)?)
+/// Outcome of leniently parsing a legacy summaries file.
+#[derive(Debug, Clone, Default)]
+pub struct ParsedSummaries {
+    pub summaries: Vec<CognitionSummary>,
+    /// Records that were present but unparseable — skipped, not fatal.
+    pub skipped: usize,
+}
+
+/// Parse the legacy `summaries.json` array **leniently**: a single malformed
+/// record is skipped and counted, never fatal — one corrupt row must not block a
+/// real user's migration (and the original is always backed up first). Errors
+/// only if the top level isn't a JSON array at all.
+pub fn summaries_from_json(json: &str) -> Result<ParsedSummaries> {
+    let values: Vec<serde_json::Value> = serde_json::from_str(json)
+        .map_err(|e| StoreError::Parse(format!("summaries.json is not a JSON array: {e}")))?;
+
+    let mut summaries = Vec::new();
+    let mut skipped = 0;
+    for value in values {
+        match serde_json::from_value::<CognitionSummary>(value) {
+            Ok(summary) => summaries.push(summary),
+            Err(_) => skipped += 1,
+        }
+    }
+    Ok(ParsedSummaries { summaries, skipped })
 }
 
 /// Flatten one cognition summary into one observation per numeric metric.
@@ -174,13 +196,75 @@ mod tests {
               "metrics": { "median_rt_ms": 312.5, "lapses_ge_500ms": 2, "notes": "x" }
             }
         ]"#;
-        let summaries = summaries_from_json(json).unwrap();
-        let obs = summary_to_observations(&summaries[0]);
+        let parsed = summaries_from_json(json).unwrap();
+        assert_eq!(parsed.skipped, 0);
+        let obs = summary_to_observations(&parsed.summaries[0]);
         // Two numeric metrics; the string "notes" is skipped.
         assert_eq!(obs.len(), 2);
         let median = obs.iter().find(|o| o.stream == "pvt.median_rt_ms").unwrap();
         assert_eq!(median.value, 312.5);
         assert_eq!(median.unit, "ms");
         assert_eq!(median.session_id.as_deref(), Some("pvt-1"));
+    }
+
+    #[test]
+    fn lenient_parse_skips_malformed_records() {
+        // good, malformed (missing required `created_at`), good.
+        let json = r#"[
+            {"id":"a","task":"pvt","created_at":"2026-06-19T08:00:00Z","metrics":{"median_rt_ms":300}},
+            {"id":"b","task":"pvt","metrics":{"median_rt_ms":310}},
+            {"id":"c","task":"nback2","created_at":"2026-06-19T09:00:00Z","metrics":{"dprime":1.5}}
+        ]"#;
+        let parsed = summaries_from_json(json).unwrap();
+        assert_eq!(parsed.summaries.len(), 2);
+        assert_eq!(parsed.skipped, 1);
+    }
+
+    #[test]
+    fn non_array_top_level_is_an_error() {
+        assert!(summaries_from_json(r#"{"not":"an array"}"#).is_err());
+        assert!(summaries_from_json("garbage").is_err());
+        assert!(summaries_from_json("").is_err());
+    }
+
+    #[test]
+    fn non_object_metrics_yield_no_observations() {
+        for metrics in ["null", "5", "\"x\"", "[]"] {
+            let json = format!(
+                r#"[{{"id":"a","task":"pvt","created_at":"2026-06-19T08:00:00Z","metrics":{metrics}}}]"#
+            );
+            let parsed = summaries_from_json(&json).unwrap();
+            assert_eq!(parsed.summaries.len(), 1, "metrics={metrics} should still parse");
+            assert!(
+                summary_to_observations(&parsed.summaries[0]).is_empty(),
+                "metrics={metrics} should yield nothing"
+            );
+        }
+    }
+
+    #[test]
+    fn bad_timestamp_yields_no_observations() {
+        let json = r#"[{"id":"a","task":"pvt","created_at":"not-a-date","metrics":{"median_rt_ms":300}}]"#;
+        let parsed = summaries_from_json(json).unwrap();
+        assert_eq!(parsed.summaries.len(), 1);
+        assert!(summary_to_observations(&parsed.summaries[0]).is_empty());
+    }
+
+    #[test]
+    fn only_numeric_metrics_become_observations() {
+        let json = r#"[{"id":"a","task":"pvt","created_at":"2026-06-19T08:00:00Z",
+            "metrics":{"num":1.5,"int":2,"text":"hi","flag":true,"nothing":null}}]"#;
+        let parsed = summaries_from_json(json).unwrap();
+        let obs = summary_to_observations(&parsed.summaries[0]);
+        assert_eq!(obs.len(), 2); // num + int; text/flag/null skipped
+    }
+
+    #[test]
+    fn subsecond_timestamp_is_preserved() {
+        // Matches the real backup format (e.g. 2025-09-21T16:21:54.093347Z).
+        let json = r#"[{"id":"a","task":"pvt","created_at":"2025-09-21T16:21:54.093347Z","metrics":{"median_rt_ms":300}}]"#;
+        let parsed = summaries_from_json(json).unwrap();
+        let obs = summary_to_observations(&parsed.summaries[0]);
+        assert_eq!(obs[0].timestamp, time::macros::datetime!(2025-09-21 16:21:54.093347));
     }
 }

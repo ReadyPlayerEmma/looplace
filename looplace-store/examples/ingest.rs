@@ -39,26 +39,34 @@ fn main() {
         }
     };
 
-    // 1. Migrate legacy cognition: read summaries.json from the real app data dir,
-    //    but write the backup + marker into the demo output dir (non-destructive).
-    if let Some(dirs) = directories::ProjectDirs::from("com", "Looplace", "Looplace") {
-        let data_dir = dirs.data_dir();
+    // 1. Migrate legacy cognition. Source = $LOOPLACE_LEGACY_SUMMARIES (handy for
+    //    restoring from a backup), else the real app data dir. Backup + marker go
+    //    to the output dir, so the real app data dir is never modified.
+    let legacy_summaries = std::env::var_os("LOOPLACE_LEGACY_SUMMARIES")
+        .map(PathBuf::from)
+        .or_else(|| {
+            directories::ProjectDirs::from("com", "Looplace", "Looplace")
+                .map(|d| d.data_dir().join(LEGACY_FILE))
+        });
+    if let Some(legacy_summaries) = legacy_summaries {
         let plan = MigrationPlan {
-            legacy_summaries: data_dir.join(LEGACY_FILE),
+            legacy_summaries: legacy_summaries.clone(),
             backup_path: out_dir.join(format!("{LEGACY_FILE}.pre-store-backup-demo")),
             marker: out_dir.join(MARKER_FILE),
         };
         match run_upgrade(&plan, &mut store) {
             Ok(MigrationOutcome::Migrated(r)) => eprintln!(
-                "✓ migrated {} cognition sessions ({} observations)",
-                r.sessions, r.observations_inserted
+                "✓ migrated {} cognition sessions ({} observations) from {}",
+                r.sessions,
+                r.observations_inserted,
+                legacy_summaries.display()
             ),
             Ok(MigrationOutcome::AlreadyDone) => {
                 eprintln!("• cognition already migrated (marker in {})", out_dir.display())
             }
             Ok(MigrationOutcome::NothingToMigrate) => eprintln!(
                 "• no legacy summaries.json at {} — nothing to migrate",
-                data_dir.display()
+                legacy_summaries.display()
             ),
             Err(e) => eprintln!("✗ cognition migration: {e}"),
         }

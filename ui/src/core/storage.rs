@@ -186,13 +186,18 @@ pub fn clear_all() -> Result<(), StorageError> {
 #[cfg(not(target_arch = "wasm32"))]
 const SUMMARY_FILE_NAME: &str = "summaries.json";
 
+/// The Looplace per-user data directory (created if needed). Single source of
+/// truth for native storage paths, reused by the desktop crate's health store.
 #[cfg(not(target_arch = "wasm32"))]
-fn summaries_file_path() -> Result<std::path::PathBuf, StorageError> {
+pub fn data_dir() -> Result<std::path::PathBuf, StorageError> {
     let dirs = directories::ProjectDirs::from("com", "Looplace", "Looplace")
         .ok_or(StorageError::LocalUnavailable)?;
-    let data_dir = dirs.data_dir();
+    let dir = dirs.data_dir().to_path_buf();
+    fs::create_dir_all(&dir).map_err(|_| StorageError::WriteFailed)?;
+    Ok(dir)
+}
 
-    fs::create_dir_all(data_dir).map_err(|_| StorageError::WriteFailed)?;
-
-    Ok(data_dir.join(SUMMARY_FILE_NAME))
+#[cfg(not(target_arch = "wasm32"))]
+fn summaries_file_path() -> Result<std::path::PathBuf, StorageError> {
+    Ok(data_dir()?.join(SUMMARY_FILE_NAME))
 }

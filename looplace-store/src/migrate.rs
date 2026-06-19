@@ -47,8 +47,10 @@ impl MigrationPlan {
 #[derive(Debug, Clone, Default)]
 pub struct MigrationReport {
     pub backup_path: Option<PathBuf>,
-    /// Cognition sessions read from the legacy file.
+    /// Cognition sessions successfully read from the legacy file.
     pub sessions: usize,
+    /// Records present but unparseable — skipped (the backup retains them).
+    pub skipped_records: usize,
     /// New observation rows written.
     pub observations_inserted: usize,
 }
@@ -93,8 +95,9 @@ pub fn run_upgrade(plan: &MigrationPlan, store: &mut dyn Store) -> Result<Migrat
     write_marker(
         &plan.marker,
         &format!(
-            "migrated {} sessions, {} observations; backup: {}",
+            "migrated {} sessions ({} skipped), {} observations; backup: {}",
             report.sessions,
+            report.skipped_records,
             report.observations_inserted,
             plan.backup_path.display()
         ),
@@ -107,12 +110,17 @@ pub fn run_upgrade(plan: &MigrationPlan, store: &mut dyn Store) -> Result<Migrat
 /// reusable primitive — no backup, no marker.
 pub fn import_summaries(path: &Path, store: &mut dyn Store) -> Result<MigrationReport> {
     let raw = fs::read_to_string(path)?;
-    let summaries = summaries_from_json(&raw)?;
-    let observations: Vec<_> = summaries.iter().flat_map(summary_to_observations).collect();
+    let parsed = summaries_from_json(&raw)?;
+    let observations: Vec<_> = parsed
+        .summaries
+        .iter()
+        .flat_map(summary_to_observations)
+        .collect();
     let observations_inserted = store.upsert(&observations)?;
     Ok(MigrationReport {
         backup_path: None,
-        sessions: summaries.len(),
+        sessions: parsed.summaries.len(),
+        skipped_records: parsed.skipped,
         observations_inserted,
     })
 }
@@ -202,6 +210,151 @@ mod tests {
         assert_eq!(import_summaries(&path, &mut store).unwrap().observations_inserted, 4);
         assert_eq!(import_summaries(&path, &mut store).unwrap().observations_inserted, 0);
 
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // --- robustness on messy real-world data ---
+
+    #[test]
+    fn totally_malformed_file_errors_without_marker_but_keeps_backup() {
+        let dir = temp_dir("corrupt");
+        fs::write(dir.join(LEGACY_FILE), "this is not json at all").unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+
+        // Unrecoverable → error; marker NOT written (don't silently mark done),
+        // original untouched, and the backup was still made first.
+        assert!(run_upgrade(&plan, &mut store).is_err());
+        assert!(!plan.marker.exists());
+        assert!(plan.legacy_summaries.exists());
+        assert!(plan.backup_path.exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn partial_corruption_skips_bad_records_and_still_migrates() {
+        let json = r#"[
+            {"id":"a","task":"pvt","created_at":"2026-06-19T08:00:00Z","metrics":{"median_rt_ms":300}},
+            {"garbage":true},
+            {"id":"c","task":"nback2","created_at":"2026-06-19T09:00:00Z","metrics":{"dprime":1.5,"hits":9}}
+        ]"#;
+        let dir = temp_dir("partial");
+        fs::write(dir.join(LEGACY_FILE), json).unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+
+        match run_upgrade(&plan, &mut store).unwrap() {
+            MigrationOutcome::Migrated(r) => {
+                assert_eq!(r.sessions, 2);
+                assert_eq!(r.skipped_records, 1);
+                assert_eq!(r.observations_inserted, 3); // 1 + 2
+            }
+            other => panic!("expected Migrated, got {other:?}"),
+        }
+        assert!(plan.marker.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn empty_array_migrates_zero() {
+        let dir = temp_dir("empty");
+        fs::write(dir.join(LEGACY_FILE), "[]").unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+        match run_upgrade(&plan, &mut store).unwrap() {
+            MigrationOutcome::Migrated(r) => {
+                assert_eq!(r.sessions, 0);
+                assert_eq!(r.observations_inserted, 0);
+            }
+            other => panic!("expected Migrated, got {other:?}"),
+        }
+        assert!(plan.marker.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn realistic_backup_structure_migrates() {
+        // Mirrors the real summaries.json: full PVT metric set incl. a boolean
+        // (`meets_min_trial_requirement`), a qc object, null/text notes, and
+        // sub-second timestamps. Boolean must be skipped; qc/notes ignored.
+        let json = r#"[
+          {"id":"pvt-1","task":"pvt","created_at":"2025-09-21T16:21:54.093347Z",
+           "metrics":{"false_starts":17,"lapses_ge_500ms":0,"mean_rt_ms":0.0,"median_rt_ms":0.0,
+             "meets_min_trial_requirement":false,"minor_lapses_355_499ms":0,"p10_rt_ms":0.0,
+             "p90_rt_ms":0.0,"reacted_trials":0,"sd_rt_ms":0.0,"time_on_task_slope_ms_per_min":0.0,
+             "total_trials":18},
+           "qc":{"visibility_blur_events":0,"focus_lost_events":0,"min_trials_met":false,
+                 "device":{"platform":"desktop"}},
+           "notes":null},
+          {"id":"nback2-1","task":"nback2","created_at":"2025-09-25T20:00:00Z",
+           "metrics":{"dprime":1.8,"criterion":0.2,"hits":10,"misses":2,"accuracy_pct":92.0},
+           "qc":{"visibility_blur_events":1,"focus_lost_events":0,"min_trials_met":true,
+                 "device":{"platform":"desktop"}},
+           "notes":"felt good"}
+        ]"#;
+        let dir = temp_dir("realistic");
+        fs::write(dir.join(LEGACY_FILE), json).unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+
+        match run_upgrade(&plan, &mut store).unwrap() {
+            MigrationOutcome::Migrated(r) => {
+                assert_eq!(r.sessions, 2);
+                assert_eq!(r.skipped_records, 0);
+                assert_eq!(r.observations_inserted, 16); // pvt 11 (12 − bool) + nback2 5
+            }
+            other => panic!("expected Migrated, got {other:?}"),
+        }
+        assert_eq!(store.query(&Query::stream("pvt.median_rt_ms")).unwrap().len(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn large_file_migrates_all() {
+        let mut records = Vec::new();
+        for i in 0..500 {
+            let (hour, minute) = (i / 60, i % 60);
+            records.push(format!(
+                r#"{{"id":"pvt-{i}","task":"pvt","created_at":"2026-06-01T{hour:02}:{minute:02}:00Z","metrics":{{"median_rt_ms":{}}}}}"#,
+                300 + i
+            ));
+        }
+        let json = format!("[{}]", records.join(","));
+        let dir = temp_dir("large");
+        fs::write(dir.join(LEGACY_FILE), json).unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+        match run_upgrade(&plan, &mut store).unwrap() {
+            MigrationOutcome::Migrated(r) => {
+                assert_eq!(r.sessions, 500);
+                assert_eq!(r.observations_inserted, 500);
+            }
+            other => panic!("expected Migrated, got {other:?}"),
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn duplicate_sessions_dedupe_on_key() {
+        // Same task + timestamp → same (stream, timestamp, source) → upsert
+        // overwrites rather than duplicating; last write wins.
+        let json = r#"[
+            {"id":"a","task":"pvt","created_at":"2026-06-19T08:00:00Z","metrics":{"median_rt_ms":300}},
+            {"id":"a","task":"pvt","created_at":"2026-06-19T08:00:00Z","metrics":{"median_rt_ms":350}}
+        ]"#;
+        let dir = temp_dir("dupe");
+        fs::write(dir.join(LEGACY_FILE), json).unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+        match run_upgrade(&plan, &mut store).unwrap() {
+            MigrationOutcome::Migrated(r) => {
+                assert_eq!(r.sessions, 2);
+                assert_eq!(r.observations_inserted, 1); // collapsed to one row
+            }
+            other => panic!("expected Migrated, got {other:?}"),
+        }
+        assert_eq!(store.query(&Query::stream("pvt.median_rt_ms")).unwrap()[0].value, 350.0);
         let _ = fs::remove_dir_all(&dir);
     }
 }

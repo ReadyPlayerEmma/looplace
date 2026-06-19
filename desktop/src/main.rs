@@ -50,6 +50,10 @@ fn main() {
 
     let resource_dir = resolve_resource_dir();
 
+    // One-time cognition→store upgrade on startup (backs up summaries.json first;
+    // idempotent). Runs before the UI; logs and continues on any error.
+    init_health_store();
+
     // Maximize window on launch (dioxus-desktop 0.6.x: pass a WindowBuilder value)
     LaunchBuilder::desktop()
         .with_cfg(
@@ -62,6 +66,49 @@ fn main() {
                 .with_resource_directory(resource_dir),
         )
         .launch(App);
+}
+
+/// One-time cognition→store upgrade + open the native health store. Logs and
+/// continues on any error — never blocks app launch. The Parquet store lives in
+/// the same per-user data dir as the legacy `summaries.json`.
+#[cfg(feature = "desktop")]
+fn init_health_store() {
+    use looplace_store::migrate::{run_upgrade, MigrationOutcome, MigrationPlan};
+    use looplace_store::ParquetStore;
+
+    let data_dir = match ui::core::storage::data_dir() {
+        Ok(dir) => dir,
+        Err(err) => {
+            eprintln!("[store] data dir unavailable, skipping migration: {err}");
+            return;
+        }
+    };
+
+    let mut store = match ParquetStore::open(data_dir.join("looplace.parquet")) {
+        Ok(store) => store,
+        Err(err) => {
+            eprintln!("[store] could not open health store: {err}");
+            return;
+        }
+    };
+
+    let tag = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    let plan = MigrationPlan::for_data_dir(&data_dir, &tag);
+    match run_upgrade(&plan, &mut store) {
+        Ok(MigrationOutcome::Migrated(r)) => eprintln!(
+            "[store] migrated {} cognition sessions ({} skipped) → {} observations",
+            r.sessions, r.skipped_records, r.observations_inserted
+        ),
+        Ok(MigrationOutcome::AlreadyDone) => eprintln!("[store] cognition already migrated"),
+        Ok(MigrationOutcome::NothingToMigrate) => {
+            eprintln!("[store] no legacy cognition data to migrate")
+        }
+        Err(err) => eprintln!("[store] migration error (will retry next launch): {err}"),
+    }
 }
 
 #[cfg(all(feature = "server", not(feature = "desktop")))]

@@ -9,6 +9,8 @@ repository.workspace = true
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }
 ui = { workspace = true }
+# Native local health + cognition store (Parquet backend). Desktop-only.
+looplace-store = { workspace = true, features = ["parquet-store"] }
 
 [features]
 default = ["desktop"]

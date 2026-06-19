@@ -24,6 +24,7 @@ ui = { path = "ui", package = "looplace-ui" }
 api = { path = "api", package = "looplace-api" }
 looplace-libre = { path = "looplace-libre", package = "looplace-libre" }
 looplace-libre-keys = { path = "looplace-libre-keys", package = "looplace-libre-keys" }
+looplace-store = { path = "looplace-store", package = "looplace-store" }
 
 [profile]
 

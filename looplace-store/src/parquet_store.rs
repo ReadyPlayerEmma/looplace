@@ -118,6 +118,13 @@ fn write_parquet(path: &Path, rows: &[Observation]) -> Result<()> {
     )
     .map_err(|e| StoreError::Backend(e.to_string()))?;
 
+    // Ensure the store's directory exists.
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
     // Atomic write: temp file in the same directory, then rename.
     let file_name = path
         .file_name()
