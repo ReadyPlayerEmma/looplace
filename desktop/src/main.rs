@@ -10,7 +10,7 @@ use dioxus::prelude::*;
 use ui::components::app_navbar::{register_nav, NavBuilder};
 use ui::components::AppNavbar;
 
-use ui::views::{Home, NBack2, Pvt, Results};
+use ui::views::{Glucose, Home, NBack2, Pvt, Results};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -24,6 +24,8 @@ enum Route {
     NBack2 {},
     #[route("/results")]
     Results {},
+    #[route("/glucose")]
+    Glucose {},
 }
 
 const MAIN_CSS_INLINE: &str = include_str!(concat!(
@@ -128,6 +130,9 @@ fn nav_nback(label: &str) -> Element {
 fn nav_results(label: &str) -> Element {
     rsx!(Link { class: "navbar__link", to: Route::Results {}, "{label}" })
 }
+fn nav_glucose(label: &str) -> Element {
+    rsx!(Link { class: "navbar__link", to: Route::Glucose {}, "{label}" })
+}
 
 #[component]
 fn App() -> Element {
@@ -145,6 +150,7 @@ fn App() -> Element {
         pvt: nav_pvt,
         nback: nav_nback,
         results: nav_results,
+        glucose: nav_glucose,
     });
 
     // Runtime maximize fallback (in case initial builder maximize is ignored by WM)

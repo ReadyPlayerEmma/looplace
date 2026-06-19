@@ -430,6 +430,16 @@ a:hover {
     color: var(--color-danger);
 }
 
+.results__alert--info {
+    border-color: rgba(91, 141, 239, 0.65);
+    color: #9db8f0;
+}
+
+.results__alert--success {
+    border-color: rgba(55, 178, 77, 0.65);
+    color: #7ee2a0;
+}
+
 .results__panels {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);

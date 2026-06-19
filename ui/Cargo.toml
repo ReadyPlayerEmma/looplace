@@ -81,3 +81,10 @@ fontdb = "0.15"
 
 # i18n (desktop requester)
 i18n-embed = { version = "0.16.0", default-features = false, features = ["fluent-system", "rust-embed", "desktop-requester"] }
+
+# Desktop-only health backend: the Parquet store + native FreeStyle Libre 2
+# driver (USB HID). Gated to desktop OSes so wasm (web) and mobile (iOS/Android)
+# builds pull neither arrow/parquet nor hidapi — and carry no device keys.
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+looplace-store = { workspace = true, features = ["parquet-store"] }
+looplace-libre = { workspace = true, features = ["transport", "libre2-keys"] }

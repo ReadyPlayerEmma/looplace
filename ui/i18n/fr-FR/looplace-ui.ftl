@@ -11,6 +11,7 @@ nav-home = Accueil
 nav-pvt = PVT
 nav-nback = 2-back
 nav-results = Résultats
+nav-glucose = Glucose
 nav-language-label = Langue
 
 ## Brand & general

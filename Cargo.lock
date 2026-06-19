@@ -3377,6 +3377,8 @@ dependencies = [
  "i18n-embed-fl",
  "js-sys",
  "looplace-api",
+ "looplace-libre",
+ "looplace-store",
  "once_cell",
  "png 0.17.16",
  "rand 0.8.5",

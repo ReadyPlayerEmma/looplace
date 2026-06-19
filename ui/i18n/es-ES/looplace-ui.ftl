@@ -8,6 +8,7 @@ nav-home = Inicio
 nav-pvt = PVT
 nav-nback = 2-back
 nav-results = Resultados
+nav-glucose = Glucosa
 nav-language-label = Idioma
 
 

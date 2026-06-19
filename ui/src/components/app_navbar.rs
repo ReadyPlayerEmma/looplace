@@ -51,6 +51,7 @@ pub struct NavBuilder {
     pub pvt: fn(label: &str) -> Element,
     pub nback: fn(label: &str) -> Element,
     pub results: fn(label: &str) -> Element,
+    pub glucose: fn(label: &str) -> Element,
 }
 
 static NAV_BUILDER: OnceCell<NavBuilder> = OnceCell::new();
@@ -100,6 +101,7 @@ pub fn AppNavbar(children: Element) -> Element {
         let pvt = (b.pvt)(&t!("nav-pvt"));
         let nback = (b.nback)(&t!("nav-nback"));
         let results = (b.results)(&t!("nav-results"));
+        let glucose = (b.glucose)(&t!("nav-glucose"));
 
         rsx! {
             nav { class: "navbar__links",
@@ -107,6 +109,7 @@ pub fn AppNavbar(children: Element) -> Element {
                 {pvt}
                 {nback}
                 {results}
+                {glucose}
             }
         }
         .expect("AppNavbar: rsx render failed")

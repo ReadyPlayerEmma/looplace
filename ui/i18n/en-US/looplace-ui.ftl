@@ -10,6 +10,7 @@ nav-home = Home
 nav-pvt = PVT
 nav-nback = 2-back
 nav-results = Results
+nav-glucose = Glucose
 nav-language-label = Language
 
 ## Brand & general
@@ -162,3 +163,11 @@ results-page-intro = Review summaries from recent runs, inspect quality checks, 
 results-refresh = Refresh
 results-empty = No runs recorded yet. Completed sessions will appear after you finish a task.
 results-error-prefix = ⚠️
+
+## Glucose / health page
+glucose-title = Glucose
+glucose-intro = Recent glucose readings from your FreeStyle Libre 2, stored locally on this device. Plug in your reader and sync to update.
+glucose-sync = Sync from reader
+glucose-syncing = Syncing…
+glucose-empty = No glucose readings yet. Connect your FreeStyle Libre 2 and choose “Sync from reader”.
+glucose-desktop-only = Glucose sync runs in the Looplace desktop app, where it can reach your reader over USB.

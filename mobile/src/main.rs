@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use ui::components::Navbar;
-use ui::views::{Home, NBack2, Pvt, Results};
+use ui::views::{Glucose, Home, NBack2, Pvt, Results};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -15,6 +15,8 @@ enum Route {
     NBack2 {},
     #[route("/results")]
     Results {},
+    #[route("/glucose")]
+    Glucose {},
 }
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -72,6 +74,11 @@ fn MobileNavbar() -> Element {
                     class: "navbar__link",
                     to: Route::Results {},
                     "Results"
+                }
+                Link {
+                    class: "navbar__link",
+                    to: Route::Glucose {},
+                    "Glucose"
                 }
             }
         }

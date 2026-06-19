@@ -1,4 +1,5 @@
 pub mod format;
+pub mod glucose;
 pub mod platform;
 pub mod qc;
 pub mod readiness;
