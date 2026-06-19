@@ -11,6 +11,7 @@ use looplace_libre::records::{Annotations, GlucoseSource, Reading};
 
 use crate::error::{Result, StoreError};
 use crate::observation::Observation;
+use crate::session::SessionRecord;
 
 /// Convert a Libre [`Reading`] into an [`Observation`]. `source` is the device
 /// serial (e.g. from `$sn?`). Time-adjustment events return `None` (metadata,
@@ -76,14 +77,69 @@ fn annotate(tags: &mut BTreeMap<String, String>, a: &Annotations) {
     }
 }
 
-/// A minimal mirror of Looplace's `SummaryRecord` for migration — only the
-/// fields we need, so this crate need not depend on `looplace-ui`.
+/// A mirror of Looplace's `SummaryRecord` for migration (so this crate needn't
+/// depend on `looplace-ui`). `id`/`task`/`created_at`/`metrics` are required;
+/// `client`/`qc`/`notes` default if absent (older or partial records).
 #[derive(Debug, Clone, Deserialize)]
 pub struct CognitionSummary {
     pub id: String,
     pub task: String,
     pub created_at: String,
+    #[serde(default)]
+    pub client: LegacyClient,
     pub metrics: serde_json::Value,
+    #[serde(default)]
+    pub qc: LegacyQc,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct LegacyClient {
+    #[serde(default)]
+    pub platform: String,
+    #[serde(default)]
+    pub tz: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct LegacyQc {
+    #[serde(default)]
+    pub visibility_blur_events: i64,
+    #[serde(default)]
+    pub focus_lost_events: i64,
+    #[serde(default)]
+    pub min_trials_met: bool,
+    #[serde(default)]
+    pub device: LegacyDevice,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct LegacyDevice {
+    #[serde(default)]
+    pub platform: String,
+    #[serde(default)]
+    pub user_agent: Option<String>,
+}
+
+/// Convert a parsed summary into a full, lossless [`SessionRecord`] for the
+/// sessions table. Returns `None` if the timestamp can't be parsed.
+pub fn summary_to_session(summary: &CognitionSummary) -> Option<SessionRecord> {
+    let created_at = parse_rfc3339(&summary.created_at)?;
+    Some(SessionRecord {
+        id: summary.id.clone(),
+        task: summary.task.clone(),
+        created_at,
+        client_platform: summary.client.platform.clone(),
+        client_tz: summary.client.tz.clone(),
+        metrics: summary.metrics.clone(),
+        qc_visibility_blur_events: summary.qc.visibility_blur_events,
+        qc_focus_lost_events: summary.qc.focus_lost_events,
+        qc_min_trials_met: summary.qc.min_trials_met,
+        qc_device_platform: summary.qc.device.platform.clone(),
+        qc_device_user_agent: summary.qc.device.user_agent.clone(),
+        notes: summary.notes.clone(),
+    })
 }
 
 /// Outcome of leniently parsing a legacy summaries file.

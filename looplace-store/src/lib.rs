@@ -18,6 +18,7 @@ pub mod convert;
 pub mod error;
 pub mod migrate;
 pub mod observation;
+pub mod session;
 pub mod store;
 
 #[cfg(feature = "parquet-store")]
@@ -25,6 +26,7 @@ pub mod parquet_store;
 
 pub use error::{Result, StoreError};
 pub use observation::{Observation, Query};
+pub use session::SessionRecord;
 pub use store::{MemoryStore, Store};
 
 #[cfg(feature = "parquet-store")]

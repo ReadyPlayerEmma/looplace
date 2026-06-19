@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::convert::{summaries_from_json, summary_to_observations};
+use crate::convert::{summaries_from_json, summary_to_observations, summary_to_session};
 use crate::error::Result;
 use crate::store::Store;
 
@@ -17,6 +17,10 @@ use crate::store::Store;
 pub const LEGACY_FILE: &str = "summaries.json";
 /// Marker recording that the cognition migration has completed.
 pub const MARKER_FILE: &str = ".cognition-migrated";
+
+/// Bump when the migration's *output schema* changes (e.g. adding the sessions
+/// table), so already-migrated users re-run the idempotent import and pick it up.
+const MIGRATION_VERSION: u32 = 1;
 
 /// The concrete paths a migration operates on. Decoupled from any specific app
 /// layout so it stays testable; use [`MigrationPlan::for_data_dir`] for the
@@ -72,7 +76,11 @@ pub enum MigrationOutcome {
 /// Order is crash-safe: back up first, then import (idempotent upsert), then
 /// write the marker. A crash before the marker simply re-runs harmlessly.
 pub fn run_upgrade(plan: &MigrationPlan, store: &mut dyn Store) -> Result<MigrationOutcome> {
-    if plan.marker.exists() {
+    // A marker at the current version means we're done. An older-version marker
+    // falls through and re-runs the idempotent import to apply newer schema (e.g.
+    // a previously observations-only migration that now also fills the sessions
+    // table).
+    if plan.marker.exists() && marker_version(&plan.marker) >= MIGRATION_VERSION {
         return Ok(MigrationOutcome::AlreadyDone);
     }
 
@@ -111,15 +119,21 @@ pub fn run_upgrade(plan: &MigrationPlan, store: &mut dyn Store) -> Result<Migrat
 pub fn import_summaries(path: &Path, store: &mut dyn Store) -> Result<MigrationReport> {
     let raw = fs::read_to_string(path)?;
     let parsed = summaries_from_json(&raw)?;
+
+    // Two representations of each session: full lossless record + tidy metrics.
+    let sessions: Vec<_> = parsed.summaries.iter().filter_map(summary_to_session).collect();
     let observations: Vec<_> = parsed
         .summaries
         .iter()
         .flat_map(summary_to_observations)
         .collect();
+
+    store.upsert_sessions(&sessions)?;
     let observations_inserted = store.upsert(&observations)?;
+
     Ok(MigrationReport {
         backup_path: None,
-        sessions: parsed.summaries.len(),
+        sessions: sessions.len(),
         skipped_records: parsed.skipped,
         observations_inserted,
     })
@@ -129,8 +143,20 @@ fn write_marker(path: &Path, note: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, note)?;
+    fs::write(path, format!("version={MIGRATION_VERSION}\n{note}\n"))?;
     Ok(())
+}
+
+/// The migration version recorded in a marker (0 if absent/unparseable).
+fn marker_version(path: &Path) -> u32 {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|content| {
+            content
+                .lines()
+                .find_map(|line| line.strip_prefix("version=").and_then(|v| v.trim().parse().ok()))
+        })
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -355,6 +381,66 @@ mod tests {
             other => panic!("expected Migrated, got {other:?}"),
         }
         assert_eq!(store.query(&Query::stream("pvt.median_rt_ms")).unwrap()[0].value, 350.0);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn migration_preserves_full_sessions_losslessly() {
+        // qc, client, notes, and the variable metrics must all survive into the
+        // sessions table — the whole point of the lossless design.
+        let json = r#"[
+          {"id":"pvt-1","task":"pvt","created_at":"2025-09-21T16:21:54.093347Z",
+           "client":{"platform":"desktop","tz":"America/Chicago"},
+           "metrics":{"median_rt_ms":312.5,"lapses_ge_500ms":2},
+           "qc":{"visibility_blur_events":0,"focus_lost_events":1,"min_trials_met":true,
+                 "device":{"platform":"desktop","user_agent":null}},
+           "notes":"felt sharp"}
+        ]"#;
+        let dir = temp_dir("lossless");
+        fs::write(dir.join(LEGACY_FILE), json).unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        let mut store = MemoryStore::new();
+        run_upgrade(&plan, &mut store).unwrap();
+
+        let sessions = store.sessions().unwrap();
+        assert_eq!(sessions.len(), 1);
+        let s = &sessions[0];
+        assert_eq!(s.task, "pvt");
+        assert_eq!(s.client_tz, "America/Chicago");
+        assert_eq!(s.qc_focus_lost_events, 1);
+        assert!(s.qc_min_trials_met);
+        assert_eq!(s.qc_device_user_agent, None);
+        assert_eq!(s.notes.as_deref(), Some("felt sharp"));
+        assert_eq!(s.metrics["median_rt_ms"], serde_json::json!(312.5));
+
+        // Both representations exist: the tidy metric is queryable too.
+        assert_eq!(store.query(&Query::stream("pvt.median_rt_ms")).unwrap()[0].value, 312.5);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn older_marker_version_triggers_remigration_then_settles() {
+        let dir = temp_dir("version");
+        fs::write(dir.join(LEGACY_FILE), SAMPLE).unwrap();
+        let plan = MigrationPlan::for_data_dir(&dir, "tag");
+        // Simulate a marker left by an older (observations-only) migration.
+        fs::write(&plan.marker, "version=0\nlegacy").unwrap();
+        let mut store = MemoryStore::new();
+
+        // Re-runs because the marker version is behind current → sessions filled.
+        assert!(matches!(
+            run_upgrade(&plan, &mut store).unwrap(),
+            MigrationOutcome::Migrated(_)
+        ));
+        assert_eq!(store.sessions().unwrap().len(), 2);
+
+        // Marker is bumped to current → subsequent launches are no-ops.
+        assert!(matches!(
+            run_upgrade(&plan, &mut store).unwrap(),
+            MigrationOutcome::AlreadyDone
+        ));
+
         let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -9,7 +9,10 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use arrow_array::{Array, Float64Array, RecordBatch, StringArray, TimestampMicrosecondArray};
+use arrow_array::{
+    Array, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray,
+    TimestampMicrosecondArray,
+};
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
@@ -17,24 +20,40 @@ use time::{OffsetDateTime, PrimitiveDateTime};
 
 use crate::error::{Result, StoreError};
 use crate::observation::{Observation, Query};
-use crate::store::{query_rows, upsert_into, Store};
+use crate::session::SessionRecord;
+use crate::store::{query_rows, sorted_sessions, upsert_into, upsert_sessions_into, Store};
 
-/// A [`Store`] persisted to a single Parquet file.
+/// A [`Store`] persisted to Parquet: observations at `path`, sessions in a
+/// sibling `*.sessions.parquet` file.
 pub struct ParquetStore {
     path: PathBuf,
+    sessions_path: PathBuf,
     rows: Vec<Observation>,
+    sessions: Vec<SessionRecord>,
 }
 
 impl ParquetStore {
-    /// Open (or create-on-first-write) a store at `path`, loading any existing rows.
+    /// Open (or create-on-first-write) a store whose observations live at `path`.
+    /// The sessions table is the sibling `<path>.sessions.parquet`.
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
+        let sessions_path = path.with_extension("sessions.parquet");
         let rows = if path.exists() {
             read_parquet(&path)?
         } else {
             Vec::new()
         };
-        Ok(Self { path, rows })
+        let sessions = if sessions_path.exists() {
+            read_sessions_parquet(&sessions_path)?
+        } else {
+            Vec::new()
+        };
+        Ok(Self {
+            path,
+            sessions_path,
+            rows,
+            sessions,
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -59,6 +78,16 @@ impl Store for ParquetStore {
 
     fn query(&self, query: &Query) -> Result<Vec<Observation>> {
         Ok(query_rows(&self.rows, query))
+    }
+
+    fn upsert_sessions(&mut self, sessions: &[SessionRecord]) -> Result<usize> {
+        let inserted = upsert_sessions_into(&mut self.sessions, sessions);
+        write_sessions_parquet(&self.sessions_path, &self.sessions)?;
+        Ok(inserted)
+    }
+
+    fn sessions(&self) -> Result<Vec<SessionRecord>> {
+        Ok(sorted_sessions(&self.sessions))
     }
 }
 
@@ -118,14 +147,16 @@ fn write_parquet(path: &Path, rows: &[Observation]) -> Result<()> {
     )
     .map_err(|e| StoreError::Backend(e.to_string()))?;
 
-    // Ensure the store's directory exists.
+    write_batch(path, schema, &batch)
+}
+
+/// Atomic Parquet write: ensure the parent dir, write a temp file, then rename.
+fn write_batch(path: &Path, schema: Arc<Schema>, batch: &RecordBatch) -> Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
         }
     }
-
-    // Atomic write: temp file in the same directory, then rename.
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -135,7 +166,7 @@ fn write_parquet(path: &Path, rows: &[Observation]) -> Result<()> {
         let file = File::create(&tmp)?;
         let mut writer =
             ArrowWriter::try_new(file, schema, None).map_err(|e| StoreError::Backend(e.to_string()))?;
-        writer.write(&batch).map_err(|e| StoreError::Backend(e.to_string()))?;
+        writer.write(batch).map_err(|e| StoreError::Backend(e.to_string()))?;
         writer.close().map_err(|e| StoreError::Backend(e.to_string()))?;
     }
     std::fs::rename(&tmp, path)?;
@@ -186,10 +217,140 @@ fn read_parquet(path: &Path) -> Result<Vec<Observation>> {
 }
 
 fn col_str<'a>(batch: &'a RecordBatch, name: &str) -> Result<&'a StringArray> {
+    col::<StringArray>(batch, name)
+}
+
+/// Downcast a named column to a concrete array type, or a clear error.
+fn col<'a, A: 'static>(batch: &'a RecordBatch, name: &str) -> Result<&'a A> {
     batch
         .column_by_name(name)
-        .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+        .and_then(|c| c.as_any().downcast_ref::<A>())
         .ok_or_else(|| StoreError::Backend(format!("column missing/typed: {name}")))
+}
+
+// ---- sessions table -------------------------------------------------------
+
+fn sessions_schema() -> Arc<Schema> {
+    Arc::new(Schema::new(vec![
+        Field::new("id", DataType::Utf8, false),
+        Field::new("task", DataType::Utf8, false),
+        Field::new(
+            "created_at",
+            DataType::Timestamp(TimeUnit::Microsecond, None),
+            false,
+        ),
+        Field::new("client_platform", DataType::Utf8, false),
+        Field::new("client_tz", DataType::Utf8, false),
+        Field::new("metrics_json", DataType::Utf8, false),
+        Field::new("qc_visibility_blur_events", DataType::Int64, false),
+        Field::new("qc_focus_lost_events", DataType::Int64, false),
+        Field::new("qc_min_trials_met", DataType::Boolean, false),
+        Field::new("qc_device_platform", DataType::Utf8, false),
+        Field::new("qc_device_user_agent", DataType::Utf8, true),
+        Field::new("notes", DataType::Utf8, true),
+    ]))
+}
+
+fn write_sessions_parquet(path: &Path, sessions: &[SessionRecord]) -> Result<()> {
+    let schema = sessions_schema();
+
+    let id = StringArray::from_iter_values(sessions.iter().map(|s| s.id.as_str()));
+    let task = StringArray::from_iter_values(sessions.iter().map(|s| s.task.as_str()));
+    let created_at = TimestampMicrosecondArray::from(
+        sessions.iter().map(|s| pdt_to_micros(s.created_at)).collect::<Vec<i64>>(),
+    );
+    let client_platform =
+        StringArray::from_iter_values(sessions.iter().map(|s| s.client_platform.as_str()));
+    let client_tz = StringArray::from_iter_values(sessions.iter().map(|s| s.client_tz.as_str()));
+    let metrics_json = StringArray::from_iter_values(
+        sessions
+            .iter()
+            .map(|s| serde_json::to_string(&s.metrics).unwrap_or_else(|_| "null".to_string())),
+    );
+    let qc_visibility = Int64Array::from(
+        sessions.iter().map(|s| s.qc_visibility_blur_events).collect::<Vec<i64>>(),
+    );
+    let qc_focus =
+        Int64Array::from(sessions.iter().map(|s| s.qc_focus_lost_events).collect::<Vec<i64>>());
+    let qc_min = BooleanArray::from(sessions.iter().map(|s| s.qc_min_trials_met).collect::<Vec<bool>>());
+    let qc_device =
+        StringArray::from_iter_values(sessions.iter().map(|s| s.qc_device_platform.as_str()));
+    let qc_user_agent =
+        StringArray::from_iter(sessions.iter().map(|s| s.qc_device_user_agent.as_deref()));
+    let notes = StringArray::from_iter(sessions.iter().map(|s| s.notes.as_deref()));
+
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(id),
+            Arc::new(task),
+            Arc::new(created_at),
+            Arc::new(client_platform),
+            Arc::new(client_tz),
+            Arc::new(metrics_json),
+            Arc::new(qc_visibility),
+            Arc::new(qc_focus),
+            Arc::new(qc_min),
+            Arc::new(qc_device),
+            Arc::new(qc_user_agent),
+            Arc::new(notes),
+        ],
+    )
+    .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+    write_batch(path, schema, &batch)
+}
+
+fn read_sessions_parquet(path: &Path) -> Result<Vec<SessionRecord>> {
+    let file = File::open(path)?;
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)
+        .map_err(|e| StoreError::Backend(e.to_string()))?
+        .build()
+        .map_err(|e| StoreError::Backend(e.to_string()))?;
+
+    let mut out = Vec::new();
+    for batch in reader {
+        let batch = batch.map_err(|e| StoreError::Backend(e.to_string()))?;
+        let id = col_str(&batch, "id")?;
+        let task = col_str(&batch, "task")?;
+        let created_at = col::<TimestampMicrosecondArray>(&batch, "created_at")?;
+        let client_platform = col_str(&batch, "client_platform")?;
+        let client_tz = col_str(&batch, "client_tz")?;
+        let metrics_json = col_str(&batch, "metrics_json")?;
+        let qc_visibility = col::<Int64Array>(&batch, "qc_visibility_blur_events")?;
+        let qc_focus = col::<Int64Array>(&batch, "qc_focus_lost_events")?;
+        let qc_min = col::<BooleanArray>(&batch, "qc_min_trials_met")?;
+        let qc_device = col_str(&batch, "qc_device_platform")?;
+        let qc_user_agent = col_str(&batch, "qc_device_user_agent")?;
+        let notes = col_str(&batch, "notes")?;
+
+        for i in 0..batch.num_rows() {
+            out.push(SessionRecord {
+                id: id.value(i).to_string(),
+                task: task.value(i).to_string(),
+                created_at: micros_to_pdt(created_at.value(i)),
+                client_platform: client_platform.value(i).to_string(),
+                client_tz: client_tz.value(i).to_string(),
+                metrics: serde_json::from_str(metrics_json.value(i))
+                    .unwrap_or(serde_json::Value::Null),
+                qc_visibility_blur_events: qc_visibility.value(i),
+                qc_focus_lost_events: qc_focus.value(i),
+                qc_min_trials_met: qc_min.value(i),
+                qc_device_platform: qc_device.value(i).to_string(),
+                qc_device_user_agent: nullable(qc_user_agent, i),
+                notes: nullable(notes, i),
+            });
+        }
+    }
+    Ok(out)
+}
+
+fn nullable(arr: &StringArray, i: usize) -> Option<String> {
+    if arr.is_null(i) {
+        None
+    } else {
+        Some(arr.value(i).to_string())
+    }
 }
 
 #[cfg(test)]
@@ -266,5 +427,56 @@ mod tests {
         assert_eq!(rows[0].value, 105.0);
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn sessions_round_trip_losslessly_through_parquet() {
+        let path = temp_path("sessions");
+        let sessions_file = path.with_extension("sessions.parquet");
+        let _ = std::fs::remove_file(&sessions_file);
+
+        let desktop = SessionRecord {
+            id: "pvt-1".into(),
+            task: "pvt".into(),
+            created_at: datetime!(2025-09-21 16:21:54.093347),
+            client_platform: "desktop".into(),
+            client_tz: "America/Chicago".into(),
+            metrics: serde_json::json!({"median_rt_ms": 312.5, "lapses_ge_500ms": 2}),
+            qc_visibility_blur_events: 0,
+            qc_focus_lost_events: 1,
+            qc_min_trials_met: true,
+            qc_device_platform: "desktop".into(),
+            qc_device_user_agent: None,
+            notes: Some("felt sharp".into()),
+        };
+        let web = SessionRecord {
+            id: "nback2-1".into(),
+            task: "nback2".into(),
+            created_at: datetime!(2025-09-25 20:00:00),
+            client_platform: "web".into(),
+            client_tz: "UTC".into(),
+            metrics: serde_json::json!({"dprime": 1.8}),
+            qc_visibility_blur_events: 2,
+            qc_focus_lost_events: 0,
+            qc_min_trials_met: false,
+            qc_device_platform: "web".into(),
+            qc_device_user_agent: Some("Mozilla/5.0".into()),
+            notes: None,
+        };
+
+        {
+            let mut store = ParquetStore::open(&path).unwrap();
+            assert_eq!(store.upsert_sessions(&[desktop.clone(), web.clone()]).unwrap(), 2);
+        }
+
+        // Reopen: metrics JSON, qc fields, and nullable user_agent/notes survive.
+        let store = ParquetStore::open(&path).unwrap();
+        let sessions = store.sessions().unwrap();
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0], desktop); // sorted by created_at
+        assert_eq!(sessions[1], web);
+
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(&sessions_file);
     }
 }

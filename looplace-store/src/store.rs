@@ -2,9 +2,13 @@
 
 use crate::error::Result;
 use crate::observation::{Observation, Query};
+use crate::session::SessionRecord;
 
 /// The storage protocol. Backends (in-memory, Parquet, later Lance) implement
 /// this; callers depend only on the trait.
+///
+/// Two tables: tidy [`Observation`]s (for correlation across streams) and full
+/// [`SessionRecord`]s (lossless cognition sessions, for the Results UI).
 pub trait Store {
     /// Idempotently write observations, overwriting any with the same
     /// [`Observation::key`]. Returns the number of *new* rows added.
@@ -12,6 +16,13 @@ pub trait Store {
 
     /// Return observations matching `query`, ordered by timestamp ascending.
     fn query(&self, query: &Query) -> Result<Vec<Observation>>;
+
+    /// Idempotently write session records, overwriting any with the same `id`.
+    /// Returns the number of *new* rows added.
+    fn upsert_sessions(&mut self, sessions: &[SessionRecord]) -> Result<usize>;
+
+    /// Return all session records, ordered by `created_at` ascending.
+    fn sessions(&self) -> Result<Vec<SessionRecord>>;
 }
 
 /// In-memory backend — always available, used for tests and as the reference
@@ -19,6 +30,7 @@ pub trait Store {
 #[derive(Debug, Default)]
 pub struct MemoryStore {
     rows: Vec<Observation>,
+    session_rows: Vec<SessionRecord>,
 }
 
 impl MemoryStore {
@@ -43,6 +55,14 @@ impl Store for MemoryStore {
     fn query(&self, query: &Query) -> Result<Vec<Observation>> {
         Ok(query_rows(&self.rows, query))
     }
+
+    fn upsert_sessions(&mut self, sessions: &[SessionRecord]) -> Result<usize> {
+        Ok(upsert_sessions_into(&mut self.session_rows, sessions))
+    }
+
+    fn sessions(&self) -> Result<Vec<SessionRecord>> {
+        Ok(sorted_sessions(&self.session_rows))
+    }
 }
 
 /// Shared upsert semantics over a row vector (overwrite by [`Observation::key`]).
@@ -64,6 +84,30 @@ pub(crate) fn upsert_into(rows: &mut Vec<Observation>, observations: &[Observati
 pub(crate) fn query_rows(rows: &[Observation], query: &Query) -> Vec<Observation> {
     let mut out: Vec<Observation> = rows.iter().filter(|o| query.matches(o)).cloned().collect();
     out.sort_by_key(|o| o.timestamp);
+    out
+}
+
+/// Shared upsert for sessions (overwrite by `id`). Returns new rows added.
+pub(crate) fn upsert_sessions_into(
+    rows: &mut Vec<SessionRecord>,
+    sessions: &[SessionRecord],
+) -> usize {
+    let mut inserted = 0;
+    for session in sessions {
+        if let Some(existing) = rows.iter_mut().find(|r| r.id == session.id) {
+            *existing = session.clone();
+        } else {
+            rows.push(session.clone());
+            inserted += 1;
+        }
+    }
+    inserted
+}
+
+/// Sessions sorted by `created_at` ascending.
+pub(crate) fn sorted_sessions(rows: &[SessionRecord]) -> Vec<SessionRecord> {
+    let mut out = rows.to_vec();
+    out.sort_by_key(|session| session.created_at);
     out
 }
 
