@@ -1,0 +1,28 @@
+[package]
+name = "looplace-store"
+version = "0.2.0"
+edition = "2021"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Local health + cognition data store for Looplace: a storage trait with swappable backends."
+
+[lib]
+name = "looplace_store"
+
+# Core (trait + types + in-memory backend + conversions + migration) is
+# dependency-light. The Parquet backend lives behind `parquet-store`; a future
+# Lance backend would be another feature/impl of the same `Store` trait.
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+time = { version = "0.3", features = ["parsing", "formatting", "macros"] }
+looplace-libre = { workspace = true }
+parquet = { version = "59.0.0", default-features = false, features = ["arrow"], optional = true }
+arrow-array = { version = "59.0.0", optional = true }
+arrow-schema = { version = "59.0.0", optional = true }
+
+[features]
+default = []
+# Parquet backend (arrow-rs, v59). Pure-Rust: no compression codecs, so no C deps.
+parquet-store = ["dep:parquet", "dep:arrow-array", "dep:arrow-schema"]

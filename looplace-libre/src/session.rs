@@ -235,9 +235,9 @@ impl<T: HidTransport> Session<T> {
         #[cfg(not(feature = "libre2-keys"))]
         {
             let _ = host_nonce;
-            return Err(LibreError::Handshake(
+            Err(LibreError::Handshake(
                 "encrypted handshake requires the `libre2-keys` feature".into(),
-            ));
+            ))
         }
 
         #[cfg(feature = "libre2-keys")]
