@@ -26,3 +26,10 @@ arrow-schema = { version = "59.0.0", optional = true }
 default = []
 # Parquet backend (arrow-rs, v59). Pure-Rust: no compression codecs, so no C deps.
 parquet-store = ["dep:parquet", "dep:arrow-array", "dep:arrow-schema"]
+# End-to-end ingest example: Parquet backend + real USB reader access (forwards
+# looplace-libre's transport + keys features).
+ingest = ["parquet-store", "looplace-libre/transport", "looplace-libre/libre2-keys"]
+
+[dev-dependencies]
+# For the ingest example to resolve the app data directory (matches `ui`).
+directories = "5"

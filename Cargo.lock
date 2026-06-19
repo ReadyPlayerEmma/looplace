@@ -3348,6 +3348,7 @@ version = "0.2.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
+ "directories",
  "looplace-libre",
  "parquet",
  "serde",
