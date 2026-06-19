@@ -2527,6 +2527,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hidapi"
+version = "2.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c78dadfc12f865bc3fcac3897e64533b930737ceb9ef245c8277de98d0b010e9"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "pkg-config",
+ "windows-sys 0.61.1",
+]
+
+[[package]]
 name = "home"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3228,6 +3241,20 @@ dependencies = [
  "dioxus",
  "looplace-ui",
 ]
+
+[[package]]
+name = "looplace-libre"
+version = "0.2.0"
+dependencies = [
+ "getrandom 0.2.16",
+ "hidapi",
+ "looplace-libre-keys",
+ "time",
+]
+
+[[package]]
+name = "looplace-libre-keys"
+version = "0.2.0"
 
 [[package]]
 name = "looplace-mobile"

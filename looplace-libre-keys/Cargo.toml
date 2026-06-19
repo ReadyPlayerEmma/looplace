@@ -1,0 +1,16 @@
+[package]
+name = "looplace-libre-keys"
+version = "0.2.0"
+edition = "2021"
+authors.workspace = true
+# Per the upstream `freestyle-keys` project, no copyright is claimed over these
+# protocol constants; distributed under 0BSD. Kept in a separate, optional crate
+# so the main driver and any default/published build stay free of the keys.
+license = "0BSD"
+repository.workspace = true
+description = "Optional FreeStyle Libre 2 protocol key constants for looplace-libre."
+
+[lib]
+name = "looplace_libre_keys"
+
+[dependencies]

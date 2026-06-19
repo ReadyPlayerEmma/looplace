@@ -1,0 +1,30 @@
+[package]
+name = "looplace-libre"
+version = "0.2.0"
+edition = "2021"
+authors.workspace = true
+license = "MPL-2.0 AND Apache-2.0 AND MIT"
+repository.workspace = true
+description = "Native-Rust FreeStyle Libre 2 driver and local health ingest for Looplace."
+
+[lib]
+name = "looplace_libre"
+
+# The crypto core and session logic are dependency-free (std only) and always
+# build, so the workspace stays green on all three target OSes and the handshake
+# is testable offline via the replay transport. Real-device I/O (`hidapi` +
+# OS randomness) lands behind `transport`; the Libre 2 key constants behind
+# `libre2-keys` (kept in a separate crate so default builds carry no keys).
+[dependencies]
+time = { version = "0.3", features = ["macros", "formatting"] }
+hidapi = { version = "2", optional = true }
+getrandom = { version = "0.2", optional = true }
+looplace-libre-keys = { workspace = true, optional = true }
+
+[features]
+default = []
+# Real USB HID transport against a physical reader, plus OS randomness for nonces.
+transport = ["dep:hidapi", "dep:getrandom"]
+# Compile in the FreeStyle Libre 2 protocol key constants (required for the
+# encrypted handshake; off by default so published builds carry no keys).
+libre2-keys = ["dep:looplace-libre-keys"]

@@ -6,6 +6,8 @@ members = [
     "desktop",
     "mobile",
     "api",
+    "looplace-libre",
+    "looplace-libre-keys",
 ]
 
 [workspace.package]
@@ -19,6 +21,8 @@ dioxus = { version = "0.6.3" }
 # workspace
 ui = { path = "ui", package = "looplace-ui" }
 api = { path = "api", package = "looplace-api" }
+looplace-libre = { path = "looplace-libre", package = "looplace-libre" }
+looplace-libre-keys = { path = "looplace-libre-keys", package = "looplace-libre-keys" }
 
 [profile]
 
