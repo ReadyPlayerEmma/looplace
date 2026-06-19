@@ -12,37 +12,36 @@ pub fn Results() -> Element {
     let _lang_marker = _lang_code.as_ref().map(|s| s()).unwrap_or_default();
 
     let results_state = use_signal(ResultsState::load);
-    let mut selected_id = use_signal(|| Option::<String>::None);
+    // Initialize the selection to the first run *once*, via a non-subscribing
+    // peek in the initializer — never write to the signal during render.
+    let selected_id = use_signal(|| {
+        results_state
+            .peek()
+            .records
+            .first()
+            .map(|record| record.id.clone())
+    });
 
     let snapshot = results_state();
 
-    if selected_id().is_none() {
-        if let Some(first) = snapshot.records.first() {
-            selected_id.set(Some(first.id.clone()));
-        }
-    }
-
-    let mut active_record = selected_id().and_then(|id| {
-        snapshot
-            .records
-            .iter()
-            .find(|record| record.id == id)
-            .cloned()
-    });
-
-    if active_record.is_none() {
-        if let Some(first) = snapshot.records.first() {
-            let fallback_id = first.id.clone();
-            selected_id.set(Some(fallback_id.clone()));
-            active_record = Some(first.clone());
-        }
-    }
+    // Resolve the active record by reading only: honor an explicit selection if it
+    // still matches a run, else fall back to the first. No signal writes in the
+    // component body (that previously risked an infinite re-render — see the
+    // dioxus_signals "read and write in reactive scope" warning).
+    let active_record = selected_id()
+        .and_then(|id| snapshot.records.iter().find(|record| record.id == id).cloned())
+        .or_else(|| snapshot.records.first().cloned());
 
     let runs_count = snapshot.records.len();
+
+    // Reload runs and re-point the selection — a write in an event handler, which
+    // is the safe place for it.
     let refresh = {
-        let mut results_signal = results_state;
+        let (mut state, mut selection) = (results_state, selected_id);
         move |_| {
-            results_signal.set(ResultsState::load());
+            let reloaded = ResultsState::load();
+            selection.set(reloaded.records.first().map(|record| record.id.clone()));
+            state.set(reloaded);
         }
     };
 
