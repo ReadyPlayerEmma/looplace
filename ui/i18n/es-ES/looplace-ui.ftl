@@ -13,7 +13,7 @@ nav-language-label = Idioma
 
 
 ## Marca y generales
-tagline = Rastrea el enfoque con compasión
+tagline = Compréndete con compasión
 
 # $name – nombre para mostrar o identificador corto del usuario.
 hello-user = ¡Hola, { $name }!
@@ -149,11 +149,13 @@ nback-aria-respond = Responder a la letra actual
 ## Página de inicio
 home-title = Looplace
 home-tagline-short = Bucles pequeños • mentes claras.
-home-intro-1 = Rastrea la vigilancia psicomotora y la memoria de trabajo con motores compartidos que se ejecutan en todas partes.
+home-intro-1 = Mide tu atención y memoria de trabajo, controla tu glucosa y explora cómo se mueven juntos tu cuerpo y tu mente, todo guardado localmente en este dispositivo.
 home-feature-pvt = Temporización PVT precisa con métricas locales
 home-feature-nback = Sesiones de memoria de trabajo 2-back
-home-feature-local = Resultados guardados localmente con opciones de exportación
-home-cta = Elige una tarea para comenzar.
+home-feature-glucose = Glucosa en sangre desde tu FreeStyle Libre 2
+home-feature-local = Todo guardado localmente, tuyo para exportar
+home-cta = Elige una tarea —o sincroniza tu lector— para comenzar.
+home-disclaimer = Para explorar tus propios datos; no es consejo médico.
 
 ## Página PVT
 page-pvt-title = Tarea de Vigilancia Psicomotora
@@ -168,3 +170,11 @@ results-page-intro = Revisa resúmenes de sesiones recientes, inspecciona contro
 results-refresh = Actualizar
 results-empty = Aún no hay sesiones registradas. Las sesiones completadas aparecerán después de terminar una tarea.
 results-error-prefix = ⚠️
+
+## Glucosa / página de salud
+glucose-title = Glucosa
+glucose-intro = Lecturas de glucosa recientes de tu FreeStyle Libre 2, guardadas localmente en este dispositivo. Conecta tu lector y sincroniza para actualizar.
+glucose-sync = Sincronizar desde el lector
+glucose-syncing = Sincronizando…
+glucose-empty = Aún no hay lecturas de glucosa. Conecta tu FreeStyle Libre 2 y elige «Sincronizar desde el lector».
+glucose-desktop-only = La sincronización de glucosa se ejecuta en la app de escritorio de Looplace, donde puede acceder a tu lector por USB.

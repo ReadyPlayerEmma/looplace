@@ -15,7 +15,7 @@ nav-glucose = Glucose
 nav-language-label = Langue
 
 ## Brand & general
-tagline = Suivre l’attention avec compassion
+tagline = Se comprendre avec compassion
 
 # $name – display name or short identifier of the user.
 hello-user = Bonjour, { $name } !
@@ -148,11 +148,13 @@ nback-aria-respond = Répondre à la lettre actuelle
 ## Page d’accueil
 home-title = Looplace
 home-tagline-short = Petites boucles • esprit clair.
-home-intro-1 = Suivez la vigilance psychomotrice et la mémoire de travail avec des moteurs partagés qui s’exécutent partout.
+home-intro-1 = Mesurez votre attention et votre mémoire de travail, suivez votre glycémie, et explorez comment votre corps et votre esprit évoluent ensemble — le tout stocké localement sur cet appareil.
 home-feature-pvt = Chronométrage PVT précis avec métriques locales
 home-feature-nback = Sessions de mémoire de travail 2-back
-home-feature-local = Résultats stockés localement avec options d’export
-home-cta = Choisissez une tâche pour commencer.
+home-feature-glucose = Glycémie depuis votre FreeStyle Libre 2
+home-feature-local = Tout est stocké localement, à vous de l’exporter
+home-cta = Choisissez une tâche — ou synchronisez votre lecteur — pour commencer.
+home-disclaimer = Pour explorer vos propres données — pas un avis médical.
 
 ## Page PVT
 page-pvt-title = Tâche de Vigilance Psychomotrice
@@ -167,3 +169,11 @@ results-page-intro = Consultez les résumés des sessions récentes, inspectez l
 results-refresh = Actualiser
 results-empty = Aucune session enregistrée. Les sessions complétées apparaîtront après avoir terminé une tâche.
 results-error-prefix = ⚠️
+
+## Glucose / page santé
+glucose-title = Glucose
+glucose-intro = Vos relevés de glycémie récents depuis votre FreeStyle Libre 2, stockés localement sur cet appareil. Branchez votre lecteur et synchronisez pour mettre à jour.
+glucose-sync = Synchroniser depuis le lecteur
+glucose-syncing = Synchronisation…
+glucose-empty = Aucun relevé de glycémie pour l’instant. Connectez votre FreeStyle Libre 2 et choisissez « Synchroniser depuis le lecteur ».
+glucose-desktop-only = La synchronisation de la glycémie s’exécute dans l’application de bureau Looplace, où elle peut accéder à votre lecteur via USB.

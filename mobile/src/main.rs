@@ -51,7 +51,7 @@ fn MobileNavbar() -> Element {
                     span { class: "navbar__brand-spark", aria_hidden: "true" }
                     span { class: "navbar__brand-mark", "Looplace" }
                 }
-                span { class: "navbar__brand-subtitle", "Track focus with compassion" }
+                span { class: "navbar__brand-subtitle", "Understand yourself, with compassion" }
             }
             nav {
                 class: "navbar__links",

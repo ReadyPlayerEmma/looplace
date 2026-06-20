@@ -145,6 +145,24 @@
 * Desktop PNG exports use shared rasterization for parity with web.
 
 ---
+## M6 — Health vertical (glucose) — in progress
+
+* [x] Native-Rust **FreeStyle Libre 2 driver** (`looplace-libre`): crypto, encrypted
+  handshake, record parsing; hardware-validated against a real reader.
+* [x] Local **unified store** (`looplace-store`): tidy `Observation` + lossless
+  `SessionRecord`, Parquet backend, backup-first migration run on startup.
+* [x] **Glucose view** (desktop): latest reading, sparkline with scan/food/exercise
+  markers, recent list, and **“Sync from reader”** (USB read on a dedicated,
+  long-lived device thread). README + home screen updated to the broader framing.
+* [ ] Glucose UX: hover tooltips + carb grams on markers; optional mmol/L toggle.
+* [ ] es/fr translation pass for the broadened home copy + the chosen tagline.
+* [ ] Results UI → store as a **write-through** (retire the dual source).
+* [ ] Phase 4 Apple Health ingest; Phase 5 correlation (glucose × cognition).
+
+**Acceptance (M6):** Plug in a Libre 2, sync from the app, and see your glucose
+trend with meal/exercise markers — all stored locally. (Met for the first slice.)
+
+---
 
 ## Data model (localStorage summary)
 

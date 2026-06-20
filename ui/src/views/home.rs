@@ -31,10 +31,15 @@ pub fn Home() -> Element {
             ul { class: "page-home__features",
                 li { {crate::t!("home-feature-pvt")} }
                 li { {crate::t!("home-feature-nback")} }
+                li { {crate::t!("home-feature-glucose")} }
                 li { {crate::t!("home-feature-local")} }
             }
             p { class: "page-home__cta",
                 {crate::t!("home-cta")}
+            }
+            p {
+                style: "margin-top:1.25rem;font-size:0.85rem;color:#98a2b3;",
+                {crate::t!("home-disclaimer")}
             }
         }
     }

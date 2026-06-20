@@ -14,7 +14,7 @@ nav-glucose = Glucose
 nav-language-label = Language
 
 ## Brand & general
-tagline = Track focus with compassion
+tagline = Understand yourself, with compassion
 
 # $name – display name or short identifier of the user.
 hello-user = Hello, { $name }!
@@ -144,11 +144,13 @@ nback-aria-respond = Respond to current letter
 ## Home page
 home-title = Looplace
 home-tagline-short = Small loops • clear minds.
-home-intro-1 = Track psychomotor vigilance and working memory with shared engines that run everywhere.
+home-intro-1 = Measure your focus and working memory, track your glucose, and explore how your body and mind move together — all stored locally on this device.
 home-feature-pvt = Precise PVT timing with local metrics
 home-feature-nback = 2-back working memory sessions
-home-feature-local = Results stored locally with export options
-home-cta = Choose a task to get started.
+home-feature-glucose = Blood glucose from your FreeStyle Libre 2
+home-feature-local = Everything stored locally, yours to export
+home-cta = Choose a task — or sync your reader — to get started.
+home-disclaimer = For exploring your own data — not medical advice.
 
 ## PVT page
 page-pvt-title = Psychomotor Vigilance Task
