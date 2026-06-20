@@ -62,6 +62,24 @@ pub struct SyncReport {
     pub added: usize,
 }
 
+/// User-configurable "normal" glucose range (mg/dL), persisted locally. The chart
+/// tints readings outside `[normal_low, normal_high]`.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GlucoseSettings {
+    pub normal_low: f64,
+    pub normal_high: f64,
+}
+
+impl Default for GlucoseSettings {
+    fn default() -> Self {
+        // A reasonable non-diabetic day-to-day range; the user can change it.
+        Self {
+            normal_low: 70.0,
+            normal_high: 140.0,
+        }
+    }
+}
+
 // ---- Desktop backend ------------------------------------------------------
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
@@ -112,6 +130,36 @@ fn format_ts(t: time::PrimitiveDateTime) -> String {
     use time::macros::format_description;
     let fmt = format_description!("[year]-[month]-[day] [hour]:[minute]");
     t.format(&fmt).unwrap_or_else(|_| "—".into())
+}
+
+/// Where the personal glucose prefs live (sibling to the store + summaries).
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn prefs_path() -> Option<std::path::PathBuf> {
+    crate::core::storage::data_dir()
+        .ok()
+        .map(|d| d.join("glucose_prefs.json"))
+}
+
+/// Load the persisted normal range, or sensible defaults.
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+pub fn load_settings() -> GlucoseSettings {
+    let Some(path) = prefs_path() else {
+        return GlucoseSettings::default();
+    };
+    match std::fs::read_to_string(path) {
+        Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
+        Err(_) => GlucoseSettings::default(),
+    }
+}
+
+/// Persist the normal range (best-effort; failures are ignored).
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+pub fn save_settings(settings: &GlucoseSettings) {
+    if let Some(path) = prefs_path() {
+        if let Ok(json) = serde_json::to_string_pretty(settings) {
+            let _ = std::fs::write(path, json);
+        }
+    }
 }
 
 /// Pull every reading from a connected FreeStyle Libre 2 over USB and write them
@@ -206,3 +254,11 @@ pub fn request_sync() -> futures_channel::oneshot::Receiver<std::result::Result<
 pub fn load() -> GlucoseData {
     GlucoseData::unsupported()
 }
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn load_settings() -> GlucoseSettings {
+    GlucoseSettings::default()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn save_settings(_settings: &GlucoseSettings) {}
