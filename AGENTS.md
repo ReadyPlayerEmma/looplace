@@ -4,12 +4,13 @@
 - Looplace is a Dioxus-generated workspace; treat the existing module layout as canonical.
 - Logic lives in `ui/`; platform crates (`web/`, `desktop/`, `mobile/`) stay as thin launchers/glue.
 - Server functions in `api/` remain stubbed during the front-end demo (no real backend calls yet).
-- Current milestone to tackle next: **M2 — Results UI** (lists, charts, export) now that the 2-back task is live.
+- Health/data layer is **native-only**: `looplace-libre/` (FreeStyle Libre 2 driver) and `looplace-store/` (unified Parquet store) can't be hard deps of `ui/` (it compiles to wasm) — in `ui/` they're gated to desktop OSes, and web/mobile show a desktop-only note. The four device keys live in `looplace-libre-keys/` behind a feature flag, never in default builds.
+- Cognition tasks (PVT, 2-back) and the Results UI are shipped. Current focus: the **health vertical** — see **M6** in `TODO.md` (glucose via the native Libre 2 driver has landed; next is glucose UX polish, then correlation).
 
 ## Quick start for new agents
 - **Local dev**
   - Web: `cd web && dx serve --platform web --open`
-  - Desktop: `cd desktop && dx serve --platform desktop` (desktop feature enabled by default)
+  - Desktop: `cargo run -p looplace-desktop --features desktop` (reliable). `dx serve --platform desktop` from `desktop/` also works, but only if the dioxus-cli `dx` is first on PATH — a Deno (or other) `dx` will reject `--platform`.
 - **Release builds**
   - `cargo build --release -p looplace-desktop --features desktop --target aarch64-apple-darwin`
   - `cargo build --release -p looplace-desktop --target x86_64-pc-windows-msvc`
@@ -51,6 +52,7 @@ macOS packaging uses the same bundler as CI; Windows build is a convenience (art
 - Keep asset paths using the `asset!` macro; native builds expect files alongside the binary/bundle.
 
 ## Known quirks & tips
+- **hidapi on macOS must run on one long-lived thread.** The `IOHIDManager` is pinned to the `CFRunLoop` of the thread that created it; driving it from a fresh per-call `std::thread` crashes on the *second* use (`EXC_BREAKPOINT` in `__CFCheckCFInfoPACSignature`). All Libre device I/O is serialized onto `ui/src/core/glucose.rs::device_thread` — never call the driver off that thread.
 - macOS binaries are ad-hoc signed; first launch may need `xattr -cr Looplace.app` or right-click → Open.
 - Windows zip expects `Looplace.exe` at the root with an `assets/` folder; keep that layout stable.
 - `ui/src/navbar.rs` inlines CSS for release builds—maintain parity if adding new global styles.

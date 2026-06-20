@@ -38,14 +38,17 @@ All platforms pull UI and logic from the shared `ui/` crate, so changes propagat
 ## Workspace layout
 
 ```
-├── api/             # server functions (shared “backend” crate)
-├── desktop/         # desktop entry + platform glue
-├── looplace-brand/  # brand assets
-├── mobile/          # mobile entry + platform glue
-├── ui/              # shared UI + client-side logic (PVT, n-back, metrics, storage)
-├── web/             # web entry + platform glue
-├── Cargo.toml       # workspace config
-└── README.md        # high-level overview
+├── api/                  # server functions (shared “backend” crate)
+├── desktop/              # desktop entry + platform glue
+├── looplace-brand/       # brand assets
+├── looplace-libre/       # native FreeStyle Libre 2 driver (crypto, HID, parsing)
+├── looplace-libre-keys/  # the four Libre 2 protocol keys (optional, feature-gated)
+├── looplace-store/       # local unified store: Observations + Sessions (Parquet)
+├── mobile/               # mobile entry + platform glue
+├── ui/                   # shared UI + client logic (tasks, metrics, storage, glucose view)
+├── web/                  # web entry + platform glue
+├── Cargo.toml            # workspace config
+└── README.md             # high-level overview
 ```
 
 **Design principle**
@@ -81,9 +84,16 @@ All platforms pull UI and logic from the shared `ui/` crate, so changes propagat
 - **Tasks**
   - `tasks/pvt/`: PVT engine, metrics, and view (ITI jitter, reaction stream, lapse flags).
   - `tasks/nback/`: 2-back engine with seeded letter stream, d′/criterion metrics, and immediate feedback.
-- **Core utilities**: timing abstraction, local storage helpers, QC flags, platform detection, formatting.
-- **Results**: list/detail placeholders ready for trend charts and exports.
+- **Core utilities**: timing abstraction, local storage helpers, QC flags, platform detection, formatting, and `core/glucose.rs` (native-only store access + the device thread that owns all hidapi/USB work).
+- **Results**: list, detail, charts (SVG sparklines/bars), and export (JSON/CSV/PNG).
+- **Glucose**: `views/glucose.rs` — latest reading, a sparkline with scan/food/exercise markers, a recent-readings list, and the “Sync from reader” action.
 - **Views**: route-level components imported by each platform.
+
+### Health & data crates (native-only)
+
+- `looplace-libre/`: native-Rust **FreeStyle Libre 2 driver** — Speck crypto + encrypted session handshake (`crypto.rs`, `session.rs`), HID transport (`transport.rs`), record parsing (`records.rs`), and the high-level `LibreDevice` (`device.rs`). Read-only against the reader. The four protocol keys live in `looplace-libre-keys/` behind the `libre2-keys` feature, so default/published builds carry no keys.
+- `looplace-store/`: the **local unified store** behind a `Store` trait — tidy `Observation` rows (glucose + cognition on one timeline, for correlation) and lossless `SessionRecord`s, persisted to Parquet, plus the backup-first, versioned **migration** the desktop app runs on startup.
+- **wasm boundary**: these crates are native-only (Parquet/arrow, `hidapi`) and must NOT be hard deps of `ui/`. In `ui/` they’re gated to desktop OSes (`cfg(any(target_os = "macos", "windows", "linux"))`), so web/mobile carry neither the heavy deps nor the device keys.
 
 ### `api/`
 
