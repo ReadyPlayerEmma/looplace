@@ -11,8 +11,11 @@
 //! data share a timeline and join trivially.
 //!
 //! Time basis: timestamps are [`time::PrimitiveDateTime`] in the *source's local
-//! wall-clock* (what the Libre reader reports). Cross-source timezone unification
-//! (e.g. cognition `created_at` is UTC) is a known TODO before correlation.
+//! wall-clock* (what the Libre reader reports) — stored raw, never offset-adjusted,
+//! so the idempotency key is stable across DST changes and re-syncs. Glucose rows
+//! carry a `tz` tag (host IANA zone name) so the local clock can be resolved to UTC
+//! by the zone's historical DST *rules* at read time; cognition `created_at` is
+//! already UTC. That cross-source unification lands with the correlation surface.
 
 pub mod convert;
 pub mod error;

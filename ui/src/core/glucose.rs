@@ -133,9 +133,12 @@ fn sync_from_reader() -> std::result::Result<SyncReport, String> {
     let serial = device.serial_number().unwrap_or_else(|_| "unknown".into());
     let readings = device.read_all().map_err(|e| format!("read failed: {e}"))?;
 
+    // Host IANA timezone (e.g. "America/Denver"), recorded with each reading so its
+    // local wall-clock can later be resolved to UTC by DST rules, not a fixed offset.
+    let tz = iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".to_string());
     let observations: Vec<_> = readings
         .iter()
-        .filter_map(|r| reading_to_observation(r, &serial))
+        .filter_map(|r| reading_to_observation(r, &serial, &tz))
         .collect();
     let total = observations.len();
     let added = store

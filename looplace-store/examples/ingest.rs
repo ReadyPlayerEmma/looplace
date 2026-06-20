@@ -77,11 +77,12 @@ fn main() {
     match open_and_connect() {
         Ok(mut device) => {
             let serial = device.serial_number().unwrap_or_else(|_| "unknown".into());
+            let tz = iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".into());
             match device.read_all() {
                 Ok(readings) => {
                     let observations: Vec<_> = readings
                         .iter()
-                        .filter_map(|r| reading_to_observation(r, &serial))
+                        .filter_map(|r| reading_to_observation(r, &serial, &tz))
                         .collect();
                     match store.upsert(&observations) {
                         Ok(new) => eprintln!(

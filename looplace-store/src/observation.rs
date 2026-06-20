@@ -39,9 +39,21 @@ impl Observation {
         }
     }
 
-    /// Idempotency key: one value per `(stream, timestamp, source)`.
-    pub fn key(&self) -> (&str, PrimitiveDateTime, &str) {
-        (&self.stream, self.timestamp, &self.source)
+    /// Idempotency key: one value per `(stream, timestamp, source, kind)`.
+    ///
+    /// `kind` is the reading-kind tag (`scan`/`sensor`/`blood` for glucose); it
+    /// keeps a manual scan and a sensor-trace point that fall in the same minute
+    /// from colliding. Streams without a `kind` tag (e.g. cognition) collapse to
+    /// `None`, so their dedup behaviour is unchanged. The key is deliberately the
+    /// device's *raw* local timestamp — never an offset-adjusted value — so it
+    /// stays stable across DST changes and re-syncs.
+    pub fn key(&self) -> (&str, PrimitiveDateTime, &str, Option<&str>) {
+        (
+            &self.stream,
+            self.timestamp,
+            &self.source,
+            self.tags.get("kind").map(String::as_str),
+        )
     }
 }
 

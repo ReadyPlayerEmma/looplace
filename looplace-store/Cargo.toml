@@ -31,5 +31,6 @@ parquet-store = ["dep:parquet", "dep:arrow-array", "dep:arrow-schema"]
 ingest = ["parquet-store", "looplace-libre/transport", "looplace-libre/libre2-keys"]
 
 [dev-dependencies]
-# For the ingest example to resolve the app data directory (matches `ui`).
+# For the ingest example to resolve the app data directory + host timezone (matches `ui`).
 directories = "5"
+iana-time-zone = "0.1"

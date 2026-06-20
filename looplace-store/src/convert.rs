@@ -14,9 +14,12 @@ use crate::observation::Observation;
 use crate::session::SessionRecord;
 
 /// Convert a Libre [`Reading`] into an [`Observation`]. `source` is the device
-/// serial (e.g. from `$sn?`). Time-adjustment events return `None` (metadata,
-/// not a measurement).
-pub fn reading_to_observation(reading: &Reading, source: &str) -> Option<Observation> {
+/// serial (e.g. from `$sn?`); `tz` is the host IANA timezone *name* (e.g.
+/// `America/Denver`) at sync time, recorded so the reader's local wall-clock can
+/// later be resolved to UTC by that zone's *historical* DST rules — never by a
+/// single current offset, which would re-key the same reading across a DST flip.
+/// Time-adjustment events return `None` (metadata, not a measurement).
+pub fn reading_to_observation(reading: &Reading, source: &str, tz: &str) -> Option<Observation> {
     match reading {
         Reading::Glucose {
             timestamp,
@@ -29,6 +32,7 @@ pub fn reading_to_observation(reading: &Reading, source: &str) -> Option<Observa
             let mut obs = Observation::new("glucose.mg_dl", *timestamp, *value_mg_dl as f64, "mg/dL", source);
             obs.tags.insert("kind".into(), glucose_kind(*kind).into());
             obs.tags.insert("record_seq".into(), device_id.to_string());
+            obs.tags.insert("tz".into(), tz.to_string());
             annotate(&mut obs.tags, annotations);
             Some(obs)
         }
@@ -41,6 +45,7 @@ pub fn reading_to_observation(reading: &Reading, source: &str) -> Option<Observa
         } => {
             let mut obs = Observation::new("ketone.mmol_l", *timestamp, *value_mmol_l, "mmol/L", source);
             obs.tags.insert("record_seq".into(), device_id.to_string());
+            obs.tags.insert("tz".into(), tz.to_string());
             annotate(&mut obs.tags, annotations);
             Some(obs)
         }
@@ -232,8 +237,9 @@ mod tests {
             "453,2,6,19,26,9,11,30,1,2,0,0,94,1,3,1,0,0,0,0,0,0,3,0,0,1,15,0,0,276,94,5,\"\",\"\",\"\",\"\",\"\",\"\"",
         ))
         .unwrap();
-        let obs = reading_to_observation(&reading, "MPGF176-T4167").unwrap();
+        let obs = reading_to_observation(&reading, "MPGF176-T4167", "America/Denver").unwrap();
         assert_eq!(obs.stream, "glucose.mg_dl");
+        assert_eq!(obs.tags.get("tz").map(String::as_str), Some("America/Denver"));
         assert_eq!(obs.value, 94.0);
         assert_eq!(obs.unit, "mg/dL");
         assert_eq!(obs.source, "MPGF176-T4167");
