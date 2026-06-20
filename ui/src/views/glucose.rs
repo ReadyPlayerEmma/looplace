@@ -123,6 +123,21 @@ fn latest_card(p: &GlucosePoint, unit: &str) -> Element {
     }
 }
 
+/// One point projected into the sparkline's pixel space, plus the marker info we
+/// need to overlay scan events without re-deriving anything inside `rsx!`.
+struct PlotPoint {
+    x: f64,
+    y: f64,
+    /// Baseline for the food glyph (above the dot, clamped into view).
+    food_y: f64,
+    /// Baseline for the exercise glyph (above the food glyph).
+    exercise_y: f64,
+    /// A discrete event (manual scan / blood sample) vs. the auto sensor trace.
+    is_event: bool,
+    food: bool,
+    exercise: bool,
+}
+
 fn sparkline(points: &[GlucosePoint], unit: &str) -> Element {
     let (w, h, pad) = (720.0_f64, 160.0_f64, 10.0_f64);
 
@@ -140,15 +155,28 @@ fn sparkline(points: &[GlucosePoint], unit: &str) -> Element {
     let vrange = if (vmax - vmin) < 1.0 { 1.0 } else { vmax - vmin };
     let trange = if tmax <= tmin { 1 } else { tmax - tmin };
 
-    let coords: Vec<String> = points
+    let plotted: Vec<PlotPoint> = points
         .iter()
         .map(|p| {
             let x = pad + (p.ts_unix - tmin) as f64 / trange as f64 * (w - 2.0 * pad);
             let y = pad + (1.0 - (p.value - vmin) / vrange) * (h - 2.0 * pad);
-            format!("{x:.1},{y:.1}")
+            let food_y = (y - 9.0).clamp(13.0, h - 4.0);
+            PlotPoint {
+                x,
+                y,
+                food_y,
+                exercise_y: (food_y - 14.0).clamp(11.0, h - 4.0),
+                is_event: p.kind == "scan" || p.kind == "blood",
+                food: p.food,
+                exercise: p.exercise,
+            }
         })
         .collect();
-    let poly = coords.join(" ");
+    let poly = plotted
+        .iter()
+        .map(|pp| format!("{:.1},{:.1}", pp.x, pp.y))
+        .collect::<Vec<_>>()
+        .join(" ");
 
     rsx! {
         div { style: "margin:0.5rem 0 1rem;",
@@ -156,6 +184,7 @@ fn sparkline(points: &[GlucosePoint], unit: &str) -> Element {
                 width: "100%",
                 height: "{h}",
                 view_box: "0 0 {w} {h}",
+                // Continuous sensor + scan trace.
                 polyline {
                     points: "{poly}",
                     fill: "none",
@@ -163,11 +192,51 @@ fn sparkline(points: &[GlucosePoint], unit: &str) -> Element {
                     stroke_width: "2",
                     stroke_linejoin: "round",
                 }
+                // Overlay a marker on each discrete scan, with food/exercise glyphs.
+                for (i , pp) in plotted.iter().enumerate() {
+                    if pp.is_event {
+                        g { key: "ev{i}",
+                            circle {
+                                cx: "{pp.x}",
+                                cy: "{pp.y}",
+                                r: "3.5",
+                                fill: "#9db8f0",
+                                stroke: "#0b0f1a",
+                                stroke_width: "1.5",
+                            }
+                            if pp.food {
+                                text {
+                                    x: "{pp.x}",
+                                    y: "{pp.food_y}",
+                                    style: "text-anchor:middle;font-size:13px;",
+                                    "🍎"
+                                }
+                            }
+                            if pp.exercise {
+                                text {
+                                    x: "{pp.x}",
+                                    y: "{pp.exercise_y}",
+                                    style: "text-anchor:middle;font-size:13px;",
+                                    "🏃"
+                                }
+                            }
+                        }
+                    }
+                }
             }
             div {
                 style: "display:flex;justify-content:space-between;font-size:0.8rem;color:#667085;",
                 span { "min {vmin:.0} {unit}" }
                 span { "max {vmax:.0} {unit}" }
+            }
+            div {
+                style: "margin-top:0.35rem;font-size:0.8rem;color:#98a2b3;display:flex;gap:1rem;flex-wrap:wrap;",
+                span {
+                    span { style: "color:#9db8f0;", "●" }
+                    " scan"
+                }
+                span { "🍎 food" }
+                span { "🏃 exercise" }
             }
         }
     }
@@ -199,14 +268,10 @@ fn sync_action(mut data: Signal<GlucoseData>, mut status: Signal<SyncStatus>) ->
             return;
         }
         status.set(SyncStatus::Running);
-        // Run the blocking USB read on a plain thread and bridge the result back
-        // to the UI task via a oneshot future — never blocks the UI thread.
+        // All device I/O runs on the shared, long-lived device thread (macOS pins
+        // hidapi to one CFRunLoop); we just await its result on the UI task.
         spawn(async move {
-            let (tx, rx) = futures_channel::oneshot::channel();
-            std::thread::spawn(move || {
-                let _ = tx.send(glucose::sync_from_reader());
-            });
-            match rx.await {
+            match glucose::request_sync().await {
                 Ok(Ok(report)) => {
                     data.set(glucose::load());
                     status.set(SyncStatus::Done {
@@ -216,7 +281,7 @@ fn sync_action(mut data: Signal<GlucoseData>, mut status: Signal<SyncStatus>) ->
                     });
                 }
                 Ok(Err(e)) => status.set(SyncStatus::Error(e)),
-                Err(_) => status.set(SyncStatus::Error("sync canceled".into())),
+                Err(_) => status.set(SyncStatus::Error("device thread unavailable".into())),
             }
         });
     };

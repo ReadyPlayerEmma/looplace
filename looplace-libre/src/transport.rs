@@ -73,8 +73,29 @@ pub use hidapi_transport::HidApiTransport;
 mod hidapi_transport {
     use super::*;
     use hidapi::{HidApi, HidDevice};
+    use std::sync::{Mutex, OnceLock};
 
-    /// Transport backed by a physical reader via the `hidapi` crate.
+    /// hidapi must be initialized once per process. Re-creating it (a `hid_exit`
+    /// on drop, then a later `hid_init`) is fragile on macOS, and — critically —
+    /// an open [`HidDevice`] does *not* keep the context alive, so dropping the
+    /// `HidApi` while a device is still open is a use-after-free that corrupts the
+    /// global HID state (it "works" once, then crashes on the next open). So we
+    /// hold a single `HidApi` for the whole program and open every device from it.
+    fn shared_api() -> Result<&'static Mutex<HidApi>> {
+        static API: OnceLock<Mutex<HidApi>> = OnceLock::new();
+        if let Some(api) = API.get() {
+            return Ok(api);
+        }
+        // `OnceLock::get_or_init` can't carry the fallible init, so construct
+        // first; a lost init race just drops a redundant context (opens are
+        // serialized in practice, so this is effectively never hit).
+        let api = HidApi::new().map_err(|e| LibreError::Transport(e.to_string()))?;
+        Ok(API.get_or_init(|| Mutex::new(api)))
+    }
+
+    /// Transport backed by a physical reader via the `hidapi` crate. The device
+    /// handle is opened from the process-wide [`shared_api`], which stays alive,
+    /// so the handle remains valid for as long as this transport lives.
     pub struct HidApiTransport {
         device: HidDevice,
     }
@@ -82,7 +103,12 @@ mod hidapi_transport {
     impl HidApiTransport {
         /// Open the first connected device matching `vendor_id`/`product_id`.
         pub fn open(vendor_id: u16, product_id: u16) -> Result<Self> {
-            let api = HidApi::new().map_err(|e| LibreError::Transport(e.to_string()))?;
+            let mut api = shared_api()?
+                .lock()
+                .map_err(|_| LibreError::Transport("hidapi context poisoned".into()))?;
+            // Re-scan so a reader plugged in (or replugged) after first init is seen.
+            api.refresh_devices()
+                .map_err(|e| LibreError::Transport(e.to_string()))?;
             let device = api
                 .open(vendor_id, product_id)
                 .map_err(|_| LibreError::DeviceNotFound)?;

@@ -115,10 +115,11 @@ fn format_ts(t: time::PrimitiveDateTime) -> String {
 }
 
 /// Pull every reading from a connected FreeStyle Libre 2 over USB and write them
-/// into the local store. Blocking (USB handshake + multi-record reads) — call it
-/// off the UI thread. Read-only against the device.
+/// into the local store. Blocking (USB handshake + multi-record reads) and
+/// read-only against the device. **Private on purpose:** it must only ever run on
+/// the [`device_thread`] — see that function for why.
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
-pub fn sync_from_reader() -> std::result::Result<SyncReport, String> {
+fn sync_from_reader() -> std::result::Result<SyncReport, String> {
     use looplace_libre::LibreDevice;
     use looplace_store::convert::reading_to_observation;
     use looplace_store::{ParquetStore, Store};
@@ -145,6 +146,55 @@ pub fn sync_from_reader() -> std::result::Result<SyncReport, String> {
         total,
         added,
     })
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+type SyncReply = futures_channel::oneshot::Sender<std::result::Result<SyncReport, String>>;
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+enum DeviceCmd {
+    Sync(SyncReply),
+}
+
+/// A single long-lived thread that owns **all** hidapi/IOKit interaction.
+///
+/// macOS pins the `IOHIDManager` to the `CFRunLoop` of the thread that created
+/// it; touching it from another thread — or after that thread has exited — taps
+/// a dangling run-loop source and traps (`__CFCheckCFInfoPACSignature`). The UI
+/// spawns a fresh worker per click, so serializing every sync onto one stable
+/// thread is what keeps the run loop valid across repeated syncs.
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn device_thread() -> &'static std::sync::Mutex<std::sync::mpsc::Sender<DeviceCmd>> {
+    use std::sync::{mpsc, Mutex, OnceLock};
+    static TX: OnceLock<Mutex<mpsc::Sender<DeviceCmd>>> = OnceLock::new();
+    TX.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<DeviceCmd>();
+        std::thread::Builder::new()
+            .name("looplace-device".into())
+            .spawn(move || {
+                while let Ok(cmd) = rx.recv() {
+                    match cmd {
+                        DeviceCmd::Sync(reply) => {
+                            let _ = reply.send(sync_from_reader());
+                        }
+                    }
+                }
+            })
+            .expect("spawn looplace-device thread");
+        Mutex::new(tx)
+    })
+}
+
+/// Enqueue a reader sync on the [`device_thread`]; `await` the returned receiver
+/// on the UI task. Resolves to canceled if the device thread can't be reached.
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+pub fn request_sync() -> futures_channel::oneshot::Receiver<std::result::Result<SyncReport, String>>
+{
+    let (tx, rx) = futures_channel::oneshot::channel();
+    if let Ok(sender) = device_thread().lock() {
+        let _ = sender.send(DeviceCmd::Sync(tx));
+    }
+    rx
 }
 
 // ---- Non-desktop stub (web / mobile) --------------------------------------
