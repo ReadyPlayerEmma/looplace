@@ -33,8 +33,19 @@ rust-embed = "8.7.2"
 fontdue = { version = "0.8", optional = true }
 
 [features]
-default = []
+# Official builds ship with the full health vertical (`libre`, which includes the
+# Libre 2 protocol keys — a deliberate decision, see README "License"). Downstream
+# packagers who must not redistribute the keys can build with
+# `--no-default-features --features store` for a keyless app that keeps the local
+# store (cognition write-through + any previously synced data) but drops the
+# reader-sync capability.
+default = ["libre"]
 embed_inter = ["fontdue"]
+# The local Parquet store (unified cognition + health data). Desktop OSes only;
+# the feature is inert on wasm/mobile targets.
+store = ["dep:looplace-store"]
+# The FreeStyle Libre 2 USB driver incl. the protocol key constants.
+libre = ["store", "dep:looplace-libre", "dep:iana-time-zone"]
 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -85,7 +96,8 @@ i18n-embed = { version = "0.16.0", default-features = false, features = ["fluent
 # Desktop-only health backend: the Parquet store + native FreeStyle Libre 2
 # driver (USB HID). Gated to desktop OSes so wasm (web) and mobile (iOS/Android)
 # builds pull neither arrow/parquet nor hidapi — and carry no device keys.
+# Optional: activated by the `store` / `libre` features (on by default).
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
-looplace-store = { workspace = true, features = ["parquet-store"] }
-looplace-libre = { workspace = true, features = ["transport", "libre2-keys"] }
-iana-time-zone = "0.1"
+looplace-store = { workspace = true, features = ["parquet-store"], optional = true }
+looplace-libre = { workspace = true, features = ["transport", "libre2-keys"], optional = true }
+iana-time-zone = { version = "0.1", optional = true }

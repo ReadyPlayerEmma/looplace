@@ -26,6 +26,28 @@ pub struct ResultsState {
 
 impl ResultsState {
     pub fn load() -> Self {
+        // Desktop: the unified store is the source of truth (new runs are
+        // written through to it on save). An empty store falls back to the
+        // legacy JSON — e.g. the startup migration hasn't populated it yet —
+        // and a store error falls back too, so results are never held hostage.
+        #[cfg(all(
+            feature = "store",
+            any(target_os = "macos", target_os = "windows", target_os = "linux")
+        ))]
+        {
+            match crate::core::local_store::load_summaries() {
+                Ok(mut records) if !records.is_empty() => {
+                    records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                    return Self {
+                        records,
+                        error: None,
+                    };
+                }
+                Ok(_) => {}
+                Err(err) => eprintln!("[store] results falling back to summaries.json: {err}"),
+            }
+        }
+
         match storage::load_summaries() {
             Ok(mut records) => {
                 records.sort_by(|a, b| b.created_at.cmp(&a.created_at));

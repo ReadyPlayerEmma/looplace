@@ -20,7 +20,11 @@ pub const MARKER_FILE: &str = ".cognition-migrated";
 
 /// Bump when the migration's *output schema* changes (e.g. adding the sessions
 /// table), so already-migrated users re-run the idempotent import and pick it up.
-const MIGRATION_VERSION: u32 = 1;
+///
+/// v2: cognition write-through landed — re-import once to backfill any sessions
+/// that were saved to `summaries.json` after v1 migrated but before the app
+/// started dual-writing new runs into the store.
+const MIGRATION_VERSION: u32 = 2;
 
 /// The concrete paths a migration operates on. Decoupled from any specific app
 /// layout so it stays testable; use [`MigrationPlan::for_data_dir`] for the

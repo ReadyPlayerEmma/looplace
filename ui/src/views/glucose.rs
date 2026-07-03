@@ -9,6 +9,11 @@ use dioxus::prelude::*;
 
 use crate::core::glucose::{self, GlucoseData, GlucosePoint, GlucoseSettings};
 
+// Without the Libre driver the sync stub never constructs the non-Idle variants.
+#[cfg_attr(
+    not(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux"))),
+    allow(dead_code)
+)]
 #[derive(Clone, PartialEq)]
 enum SyncStatus {
     Idle,
@@ -490,9 +495,10 @@ fn recent_list(points: &[GlucosePoint], unit: &str) -> Element {
     }
 }
 
-// ---- Sync button: desktop wires the reader; web/mobile renders nothing -----
+// ---- Sync button: needs the Libre driver (`libre` feature, desktop only);
+// ---- web/mobile and keyless builds render nothing --------------------------
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn sync_action(mut data: Signal<GlucoseData>, mut status: Signal<SyncStatus>) -> Element {
     let running = matches!(&*status.read(), SyncStatus::Running);
     let onclick = move |_| {
@@ -532,7 +538,7 @@ fn sync_action(mut data: Signal<GlucoseData>, mut status: Signal<SyncStatus>) ->
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+#[cfg(not(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux"))))]
 fn sync_action(_data: Signal<GlucoseData>, _status: Signal<SyncStatus>) -> Element {
     rsx! {}
 }

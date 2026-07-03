@@ -21,7 +21,9 @@ use time::{OffsetDateTime, PrimitiveDateTime};
 use crate::error::{Result, StoreError};
 use crate::observation::{Observation, Query};
 use crate::session::SessionRecord;
-use crate::store::{query_rows, sorted_sessions, upsert_into, upsert_sessions_into, Store};
+use crate::store::{
+    delete_sessions_from, query_rows, sorted_sessions, upsert_into, upsert_sessions_into, Store,
+};
 
 /// A [`Store`] persisted to Parquet: observations at `path`, sessions in a
 /// sibling `*.sessions.parquet` file.
@@ -88,6 +90,15 @@ impl Store for ParquetStore {
 
     fn sessions(&self) -> Result<Vec<SessionRecord>> {
         Ok(sorted_sessions(&self.sessions))
+    }
+
+    fn delete_sessions(&mut self, ids: &[String]) -> Result<usize> {
+        let removed = delete_sessions_from(&mut self.rows, &mut self.sessions, ids);
+        if removed > 0 {
+            write_parquet(&self.path, &self.rows)?;
+            write_sessions_parquet(&self.sessions_path, &self.sessions)?;
+        }
+        Ok(removed)
     }
 }
 
@@ -427,6 +438,60 @@ mod tests {
         assert_eq!(rows[0].value, 105.0);
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn delete_sessions_persists_across_reopen() {
+        let path = temp_path("delete");
+        let sessions_file = path.with_extension("sessions.parquet");
+        let _ = std::fs::remove_file(&sessions_file);
+
+        let session = SessionRecord {
+            id: "pvt-1".into(),
+            task: "pvt".into(),
+            created_at: datetime!(2026-06-19 08:00:00),
+            client_platform: "desktop".into(),
+            client_tz: "UTC".into(),
+            metrics: serde_json::json!({"median_rt_ms": 300.0}),
+            qc_visibility_blur_events: 0,
+            qc_focus_lost_events: 0,
+            qc_min_trials_met: true,
+            qc_device_platform: "desktop".into(),
+            qc_device_user_agent: None,
+            notes: None,
+        };
+        let mut derived = Observation::new(
+            "pvt.median_rt_ms",
+            datetime!(2026-06-19 08:00:00),
+            300.0,
+            "ms",
+            "looplace",
+        );
+        derived.session_id = Some("pvt-1".into());
+        let glucose = Observation::new(
+            "glucose.mg_dl",
+            datetime!(2026-06-19 08:30:00),
+            100.0,
+            "mg/dL",
+            "dev",
+        );
+
+        {
+            let mut store = ParquetStore::open(&path).unwrap();
+            store.upsert_sessions(std::slice::from_ref(&session)).unwrap();
+            store.upsert(&[derived, glucose.clone()]).unwrap();
+            assert_eq!(store.delete_sessions(&["pvt-1".into()]).unwrap(), 1);
+        }
+
+        // Reopen from disk: the session and its derived observation are gone;
+        // the unrelated glucose row survived.
+        let store = ParquetStore::open(&path).unwrap();
+        assert!(store.sessions().unwrap().is_empty());
+        let rows = store.query(&Query::default()).unwrap();
+        assert_eq!(rows, vec![glucose]);
+
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(&sessions_file);
     }
 
     #[test]

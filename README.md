@@ -66,4 +66,10 @@ For additional targets, workspace layout, accessibility/timing guidelines, and d
 
 ## License
 
-Looplace is released under the [Mozilla Public License 2.0](./LICENSE). The optional FreeStyle Libre 2 protocol key constants live in a separate crate (`looplace-libre-keys`) behind a feature flag and are excluded from default builds.
+Looplace is released under the [Mozilla Public License 2.0](./LICENSE).
+
+The FreeStyle Libre 2 protocol key constants live in a separate 0BSD crate (`looplace-libre-keys`), mirroring the approach of the `freestyle-keys` Python package: they are interoperability constants, not a technical protection measure. Official desktop builds include them so glucose sync works out of the box — a deliberate choice, since they are equally present in this repository's source. Packagers who must not redistribute them can build a keyless app (local store and charts, no reader sync) with:
+
+```bash
+cargo build --release -p looplace-desktop --no-default-features --features desktop,store
+```

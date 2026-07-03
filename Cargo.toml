@@ -20,7 +20,10 @@ repository = "https://github.com/ReadyPlayerEmma/looplace"
 dioxus = { version = "0.6.3" }
 
 # workspace
-ui = { path = "ui", package = "looplace-ui" }
+# default-features = false so platform crates opt in explicitly: desktop's
+# default feature set re-enables the health vertical (`ui/libre`); on web/mobile
+# the ui features are target-inert anyway.
+ui = { path = "ui", package = "looplace-ui", default-features = false }
 api = { path = "api", package = "looplace-api" }
 looplace-libre = { path = "looplace-libre", package = "looplace-libre" }
 looplace-libre-keys = { path = "looplace-libre-keys", package = "looplace-libre-keys" }

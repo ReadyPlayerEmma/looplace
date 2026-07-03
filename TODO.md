@@ -154,9 +154,15 @@
 * [x] **Glucose view** (desktop): latest reading, sparkline with scan/food/exercise
   markers, recent list, and **“Sync from reader”** (USB read on a dedicated,
   long-lived device thread). README + home screen updated to the broader framing.
-* [ ] Glucose UX: hover tooltips + carb grams on markers; optional mmol/L toggle.
-* [ ] es/fr translation pass for the broadened home copy + the chosen tagline.
-* [ ] Results UI → store as a **write-through** (retire the dual source).
+* [x] Glucose UX: grid lines + day boundaries, personal normal range with
+  out-of-range tinting, hover tooltips on scan points.
+* [x] es/fr translation pass for the broadened home copy + the chosen tagline.
+* [x] Results UI → store as a **write-through**: new runs dual-write (store +
+  JSON backup), Results reads the store on desktop (JSON fallback), deletes
+  propagate to both, writes serialized by a process-wide lock.
+* [x] Keys decision: official builds ship the Libre 2 keys (documented in README
+  License); keyless packager build = `--no-default-features --features desktop,store`.
+* [ ] Carb grams next to food markers; optional mmol/L toggle.
 * [ ] Phase 4 Apple Health ingest; Phase 5 correlation (glucose × cognition).
 
 **Acceptance (M6):** Plug in a Libre 2, sync from the app, and see your glucose

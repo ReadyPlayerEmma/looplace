@@ -4,7 +4,8 @@
 - Looplace is a Dioxus-generated workspace; treat the existing module layout as canonical.
 - Logic lives in `ui/`; platform crates (`web/`, `desktop/`, `mobile/`) stay as thin launchers/glue.
 - Server functions in `api/` remain stubbed during the front-end demo (no real backend calls yet).
-- Health/data layer is **native-only**: `looplace-libre/` (FreeStyle Libre 2 driver) and `looplace-store/` (unified Parquet store) can't be hard deps of `ui/` (it compiles to wasm) — in `ui/` they're gated to desktop OSes, and web/mobile show a desktop-only note. The four device keys live in `looplace-libre-keys/` behind a feature flag, never in default builds.
+- Health/data layer is **native-only**: `looplace-libre/` (FreeStyle Libre 2 driver) and `looplace-store/` (unified Parquet store) can't be hard deps of `ui/` (it compiles to wasm) — in `ui/` they're optional deps behind the `store`/`libre` features AND gated to desktop OSes; web/mobile show a desktop-only note. Official builds ship with `libre` (includes the device keys — deliberate, see README License); the keyless packager build is `--no-default-features --features desktop,store` and CI keeps it compiling.
+- On desktop the **store is the source of truth for cognition**: run saves dual-write (store + `summaries.json` backup) via `ui/src/core/local_store.rs`, Results reads the store (JSON fallback), deletes propagate to both. All store writes go through `local_store::store_lock()` — take it for any new open→write path, or a concurrent glucose sync can drop your rows.
 - Cognition tasks (PVT, 2-back) and the Results UI are shipped. Current focus: the **health vertical** — see **M6** in `TODO.md` (glucose via the native Libre 2 driver has landed; next is glucose UX polish, then correlation).
 
 ## Quick start for new agents

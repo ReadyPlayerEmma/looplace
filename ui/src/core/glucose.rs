@@ -1,10 +1,12 @@
 //! Glucose data access for the in-app Health view.
 //!
-//! The real backend — reading the local Parquet store and syncing from the USB
-//! reader — is **desktop-only**, gated to macOS/Windows/Linux. That keeps wasm
-//! (web) and mobile (iOS/Android) builds free of Parquet/hidapi *and* free of the
-//! Libre 2 device keys; on those targets [`load`] returns an `unsupported`
-//! snapshot and the view shows a desktop-only note.
+//! The real backend is **desktop-only** and split across two features: `store`
+//! (read the local Parquet store) and `libre` (sync from the USB reader —
+//! carries the Libre 2 device keys). Both are on by default; a keyless build
+//! (`--no-default-features --features store`) keeps the chart over existing
+//! data but drops the sync capability. On wasm/mobile targets — or without
+//! `store` — [`load`] returns an `unsupported` snapshot and the view shows a
+//! desktop-only note.
 
 /// One glucose reading, flattened for display.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,7 +35,7 @@ pub struct GlucoseData {
 }
 
 impl GlucoseData {
-    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    #[cfg(not(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux"))))]
     fn unsupported() -> Self {
         Self {
             points: Vec::new(),
@@ -43,7 +45,7 @@ impl GlucoseData {
         }
     }
 
-    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    #[cfg(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     fn error(msg: String) -> Self {
         Self {
             points: Vec::new(),
@@ -82,22 +84,21 @@ impl Default for GlucoseSettings {
 
 // ---- Desktop backend ------------------------------------------------------
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 const GLUCOSE_STREAM: &str = "glucose.mg_dl";
 
 /// Read all glucose observations from the local store.
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn load() -> GlucoseData {
-    use looplace_store::{ParquetStore, Query, Store};
+    use crate::core::local_store;
+    use looplace_store::{Query, Store};
 
-    let path = match crate::core::storage::data_dir() {
-        Ok(dir) => dir.join("looplace.parquet"),
-        Err(e) => return GlucoseData::error(format!("data dir unavailable: {e}")),
-    };
-    // `open` treats a missing file as an empty store, so first-run is not an error.
-    let store = match ParquetStore::open(&path) {
+    // Shared open + the process-wide lock (a glucose sync on the device thread
+    // could be rewriting the file at this moment).
+    let _guard = local_store::store_lock().lock().unwrap_or_else(|p| p.into_inner());
+    let store = match local_store::open() {
         Ok(s) => s,
-        Err(e) => return GlucoseData::error(format!("couldn't open store: {e}")),
+        Err(e) => return GlucoseData::error(e),
     };
     let rows = match store.query(&Query::stream(GLUCOSE_STREAM)) {
         Ok(r) => r,
@@ -112,7 +113,7 @@ pub fn load() -> GlucoseData {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn point_from_obs(o: &looplace_store::Observation) -> GlucosePoint {
     let is = |k: &str| o.tags.get(k).map(|v| v == "true").unwrap_or(false);
     GlucosePoint {
@@ -125,7 +126,7 @@ fn point_from_obs(o: &looplace_store::Observation) -> GlucosePoint {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn format_ts(t: time::PrimitiveDateTime) -> String {
     use time::macros::format_description;
     let fmt = format_description!("[year]-[month]-[day] [hour]:[minute]");
@@ -166,15 +167,12 @@ pub fn save_settings(settings: &GlucoseSettings) {
 /// into the local store. Blocking (USB handshake + multi-record reads) and
 /// read-only against the device. **Private on purpose:** it must only ever run on
 /// the [`device_thread`] — see that function for why.
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn sync_from_reader() -> std::result::Result<SyncReport, String> {
+    use crate::core::local_store;
     use looplace_libre::LibreDevice;
     use looplace_store::convert::reading_to_observation;
-    use looplace_store::{ParquetStore, Store};
-
-    let dir = crate::core::storage::data_dir().map_err(|e| format!("data dir unavailable: {e}"))?;
-    let mut store = ParquetStore::open(dir.join("looplace.parquet"))
-        .map_err(|e| format!("couldn't open store: {e}"))?;
+    use looplace_store::Store;
 
     let mut device = LibreDevice::open_libre2().map_err(|e| format!("reader not found: {e}"))?;
     device.connect().map_err(|e| format!("handshake failed: {e}"))?;
@@ -189,6 +187,10 @@ fn sync_from_reader() -> std::result::Result<SyncReport, String> {
         .filter_map(|r| reading_to_observation(r, &serial, &tz))
         .collect();
     let total = observations.len();
+    // Open the store only now that the (slow) device read is done, under the
+    // shared lock so we can't race a cognition save rewriting the same file.
+    let _guard = local_store::store_lock().lock().unwrap_or_else(|p| p.into_inner());
+    let mut store = local_store::open()?;
     let added = store
         .upsert(&observations)
         .map_err(|e| format!("store write failed: {e}"))?;
@@ -199,10 +201,10 @@ fn sync_from_reader() -> std::result::Result<SyncReport, String> {
     })
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 type SyncReply = futures_channel::oneshot::Sender<std::result::Result<SyncReport, String>>;
 
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 enum DeviceCmd {
     Sync(SyncReply),
 }
@@ -214,7 +216,7 @@ enum DeviceCmd {
 /// a dangling run-loop source and traps (`__CFCheckCFInfoPACSignature`). The UI
 /// spawns a fresh worker per click, so serializing every sync onto one stable
 /// thread is what keeps the run loop valid across repeated syncs.
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn device_thread() -> &'static std::sync::Mutex<std::sync::mpsc::Sender<DeviceCmd>> {
     use std::sync::{mpsc, Mutex, OnceLock};
     static TX: OnceLock<Mutex<mpsc::Sender<DeviceCmd>>> = OnceLock::new();
@@ -238,7 +240,7 @@ fn device_thread() -> &'static std::sync::Mutex<std::sync::mpsc::Sender<DeviceCm
 
 /// Enqueue a reader sync on the [`device_thread`]; `await` the returned receiver
 /// on the UI task. Resolves to canceled if the device thread can't be reached.
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[cfg(all(feature = "libre", any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn request_sync() -> futures_channel::oneshot::Receiver<std::result::Result<SyncReport, String>>
 {
     let (tx, rx) = futures_channel::oneshot::channel();
@@ -248,9 +250,9 @@ pub fn request_sync() -> futures_channel::oneshot::Receiver<std::result::Result<
     rx
 }
 
-// ---- Non-desktop stub (web / mobile) --------------------------------------
+// ---- Stubs (web / mobile, or store-less builds) ----------------------------
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+#[cfg(not(all(feature = "store", any(target_os = "macos", target_os = "windows", target_os = "linux"))))]
 pub fn load() -> GlucoseData {
     GlucoseData::unsupported()
 }

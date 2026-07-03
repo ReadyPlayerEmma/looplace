@@ -23,6 +23,11 @@ pub trait Store {
 
     /// Return all session records, ordered by `created_at` ascending.
     fn sessions(&self) -> Result<Vec<SessionRecord>>;
+
+    /// Delete sessions by id, along with the observations that were derived from
+    /// them (matched on `Observation::session_id`). Returns the number of session
+    /// rows removed. Unknown ids are ignored.
+    fn delete_sessions(&mut self, ids: &[String]) -> Result<usize>;
 }
 
 /// In-memory backend — always available, used for tests and as the reference
@@ -62,6 +67,14 @@ impl Store for MemoryStore {
 
     fn sessions(&self) -> Result<Vec<SessionRecord>> {
         Ok(sorted_sessions(&self.session_rows))
+    }
+
+    fn delete_sessions(&mut self, ids: &[String]) -> Result<usize> {
+        Ok(delete_sessions_from(
+            &mut self.rows,
+            &mut self.session_rows,
+            ids,
+        ))
     }
 }
 
@@ -111,6 +124,19 @@ pub(crate) fn sorted_sessions(rows: &[SessionRecord]) -> Vec<SessionRecord> {
     out
 }
 
+/// Shared delete semantics: drop sessions by id and the observations derived
+/// from them. Returns the number of session rows removed.
+pub(crate) fn delete_sessions_from(
+    rows: &mut Vec<Observation>,
+    sessions: &mut Vec<SessionRecord>,
+    ids: &[String],
+) -> usize {
+    let before = sessions.len();
+    sessions.retain(|s| !ids.contains(&s.id));
+    rows.retain(|o| o.session_id.as_ref().map(|id| !ids.contains(id)).unwrap_or(true));
+    before - sessions.len()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +157,47 @@ mod tests {
         assert_eq!(store.upsert(&[a2]).unwrap(), 0);
         assert_eq!(store.len(), 1);
         assert_eq!(store.query(&Query::default()).unwrap()[0].value, 105.0);
+    }
+
+    #[test]
+    fn delete_sessions_removes_rows_and_derived_observations() {
+        use crate::session::SessionRecord;
+
+        let mut store = MemoryStore::new();
+        // Two sessions, each with one derived observation, plus one unrelated
+        // glucose row that must survive.
+        let session = |id: &str| SessionRecord {
+            id: id.into(),
+            task: "pvt".into(),
+            created_at: datetime!(2026-06-19 08:00:00),
+            client_platform: "desktop".into(),
+            client_tz: "UTC".into(),
+            metrics: serde_json::json!({}),
+            qc_visibility_blur_events: 0,
+            qc_focus_lost_events: 0,
+            qc_min_trials_met: true,
+            qc_device_platform: "desktop".into(),
+            qc_device_user_agent: None,
+            notes: None,
+        };
+        store
+            .upsert_sessions(&[session("pvt-1"), session("pvt-2")])
+            .unwrap();
+        let mut derived = obs("pvt.median_rt_ms", datetime!(2026-06-19 08:00:00), 300.0);
+        derived.session_id = Some("pvt-1".into());
+        let mut derived2 = obs("pvt.median_rt_ms", datetime!(2026-06-19 09:00:00), 310.0);
+        derived2.session_id = Some("pvt-2".into());
+        let unrelated = obs("glucose.mg_dl", datetime!(2026-06-19 08:30:00), 100.0);
+        store.upsert(&[derived, derived2, unrelated]).unwrap();
+
+        let removed = store
+            .delete_sessions(&["pvt-1".into(), "missing".into()])
+            .unwrap();
+        assert_eq!(removed, 1);
+        assert_eq!(store.sessions().unwrap().len(), 1);
+        let remaining = store.query(&Query::default()).unwrap();
+        assert_eq!(remaining.len(), 2); // pvt-2's obs + the glucose row
+        assert!(remaining.iter().all(|o| o.session_id.as_deref() != Some("pvt-1")));
     }
 
     #[test]

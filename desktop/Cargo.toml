@@ -8,11 +8,19 @@ repository.workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["router"] }
-ui = { workspace = true }
+# default-features off so the `libre`/`store` split below actually controls what
+# ships; `default = [..., "libre"]` restores the full build for normal use.
+ui = { workspace = true, default-features = false }
 # Native local health + cognition store (Parquet backend). Desktop-only.
+# Unconditional: the startup migration always runs regardless of feature set.
 looplace-store = { workspace = true, features = ["parquet-store"] }
 
 [features]
-default = ["desktop"]
+default = ["desktop", "libre"]
 desktop = ["dioxus/desktop"]
 server = ["dioxus/server"]
+# Local store only — keyless build for packagers:
+#   cargo build -p looplace-desktop --no-default-features --features desktop,store
+store = ["ui/store"]
+# Full health vertical: store + Libre 2 USB sync (embeds the protocol keys).
+libre = ["store", "ui/libre"]

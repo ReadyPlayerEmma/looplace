@@ -106,7 +106,18 @@ pub fn load_summaries() -> Result<Vec<SummaryRecord>, StorageError> {
 pub fn append_summary(summary: &SummaryRecord) -> Result<(), StorageError> {
     let mut records = load_summaries()?;
     records.push(summary.clone());
-    save_all(&records)
+    save_all(&records)?;
+
+    // Write-through: on desktop the unified store is the Results read path;
+    // the JSON above stays as backup/export (and the web format). Best-effort —
+    // a store failure logs and never fails the run save.
+    #[cfg(all(
+        feature = "store",
+        any(target_os = "macos", target_os = "windows", target_os = "linux")
+    ))]
+    crate::core::local_store::save_summary(summary);
+
+    Ok(())
 }
 
 /// Delete a single summary by its id.
@@ -122,6 +133,15 @@ pub fn delete_summary(id: &str) -> Result<bool, StorageError> {
     if deleted {
         save_all(&records)?;
     }
+
+    // Mirror the delete into the store (unconditionally — even on a JSON miss,
+    // so the two can't drift apart). Best-effort.
+    #[cfg(all(
+        feature = "store",
+        any(target_os = "macos", target_os = "windows", target_os = "linux")
+    ))]
+    crate::core::local_store::delete(id);
+
     Ok(deleted)
 }
 

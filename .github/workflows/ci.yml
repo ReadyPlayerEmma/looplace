@@ -42,6 +42,13 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy -p looplace-ui -p looplace-store -p looplace-libre --all-features -- -D warnings
 
+      # The feature ladder must keep compiling: no features (wasm-shaped stubs),
+      # and store-without-libre (the keyless build for downstream packagers).
+      - name: Check keyless feature combos
+        run: |
+          cargo check -p looplace-ui --no-default-features
+          cargo check -p looplace-ui --no-default-features --features store
+
   # TODO(web): add a `cargo check -p looplace-web --target wasm32-unknown-unknown`
   # job once ui/src/results/export.rs is fixed for current web_sys (the web build
   # is known-broken today; gating it now would just be permanently red).
