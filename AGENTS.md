@@ -40,6 +40,7 @@ Key flags (additive):
 macOS packaging uses the same bundler as CI; Windows build is a convenience (artifact still produced authoritatively in CI).
 
 ## CI snapshot
+- `CI`: the verification gate — `cargo test` + `cargo clippy -D warnings` on the three logic crates (`looplace-ui`, `looplace-store`, `looplace-libre`, all features) on macOS + Ubuntu for every push/PR. Keep it green; it's what makes the data-integrity guarantees real. (No fmt gate yet — the tree isn't fmt-clean; run `cargo fmt` as a dedicated commit first if adding one. wasm check is TODO until the web build is fixed.)
 - `Build (Desktop)`: macOS Apple Silicon `.app` bundle + Windows x64 zip on every push/PR (now both use canonical macOS bundler script).
 - `Release (Desktop)`: tagged builds publish both artifacts to GitHub Releases.
 - `Deploy (CF Pages)`: disabled for now; rename `.github/workflows/deploy-pages.yml.disabled` back to `.yml` if we resume web builds (requires `CF_API_TOKEN`/`CF_ACCOUNT_ID`).

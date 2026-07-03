@@ -1,0 +1,47 @@
+name: CI
+
+# The verification gate: tests + strict clippy on the library crates that hold
+# the logic (task metrics, store/migration, Libre driver). Desktop release
+# compilation is covered separately by build-desktop.yml on every push.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test+clippy • ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      # hidapi's Linux hidraw backend links libudev.
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test (all features)
+        run: cargo test -p looplace-ui -p looplace-store -p looplace-libre --all-features
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy -p looplace-ui -p looplace-store -p looplace-libre --all-features -- -D warnings
+
+  # TODO(web): add a `cargo check -p looplace-web --target wasm32-unknown-unknown`
+  # job once ui/src/results/export.rs is fixed for current web_sys (the web build
+  # is known-broken today; gating it now would just be permanently red).

@@ -160,3 +160,162 @@ fn slope_minutes(xs_minutes: &[f64], ys_ms: &[f64]) -> f64 {
         (n * sum_xy - sum_x * sum_y) / denominator
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tasks::pvt::engine::{PvtTrial, TrialOutcome};
+
+    /// A completed trial with the given outcome, presented `onset_ms` after
+    /// session start.
+    fn trial(index: usize, outcome: TrialOutcome, onset_ms: f64) -> PvtTrial {
+        let mut t = PvtTrial::new(index, 2000);
+        t.onset_since_start_ms = Some(onset_ms);
+        t.outcome = outcome;
+        t
+    }
+
+    fn reaction(index: usize, rt_ms: f64, onset_ms: f64) -> PvtTrial {
+        trial(index, TrialOutcome::Reaction { rt_ms }, onset_ms)
+    }
+
+    fn assert_close(actual: f64, expected: f64, label: &str) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "{label}: expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn stats_match_hand_computed_values() {
+        // RTs 200/250/300/350/400 at one-minute spacing: every stat is
+        // hand-checkable.
+        let trials: Vec<PvtTrial> = [200.0, 250.0, 300.0, 350.0, 400.0]
+            .iter()
+            .enumerate()
+            .map(|(i, rt)| reaction(i, *rt, i as f64 * 60_000.0))
+            .collect();
+
+        let m = PvtMetrics::from_trials(&trials, 0, 5);
+        assert_eq!(m.total_trials, 5);
+        assert_eq!(m.reacted_trials, 5);
+        assert_close(m.mean_rt_ms, 300.0, "mean");
+        assert_close(m.median_rt_ms, 300.0, "median");
+        // Sample SD: sqrt((100² + 50² + 0 + 50² + 100²) / 4) = sqrt(6250).
+        assert_close(m.sd_rt_ms, 6250.0_f64.sqrt(), "sd");
+        // Interpolated percentiles: rank = pct * (n-1).
+        assert_close(m.p10_rt_ms, 220.0, "p10"); // rank 0.4 → 200 + 0.4·50
+        assert_close(m.p90_rt_ms, 380.0, "p90"); // rank 3.6 → 350 + 0.6·50
+        // RT climbs 50 ms per minute of time-on-task.
+        assert_close(m.time_on_task_slope_ms_per_min, 50.0, "slope");
+        assert!(m.meets_min_trial_requirement);
+        assert_eq!(m.lapses_ge_500ms, 0);
+        assert_eq!(m.minor_lapses_355_499ms, 1); // the 400 ms reaction
+    }
+
+    #[test]
+    fn lapse_thresholds_are_exact_at_boundaries() {
+        // 354.9 → clean; 355.0 and 499.9 → minor; 500.0 → major. A slow
+        // reaction is a lapse but still counts as a reacted trial.
+        let trials = vec![
+            reaction(0, 354.9, 0.0),
+            reaction(1, 355.0, 1000.0),
+            reaction(2, 499.9, 2000.0),
+            reaction(3, 500.0, 3000.0),
+        ];
+
+        let m = PvtMetrics::from_trials(&trials, 0, 1);
+        assert_eq!(m.reacted_trials, 4);
+        assert_eq!(m.minor_lapses_355_499ms, 2);
+        assert_eq!(m.lapses_ge_500ms, 1);
+    }
+
+    #[test]
+    fn timeout_lapses_count_without_polluting_rt_stats() {
+        // A full timeout (TrialOutcome::Lapse) is a major lapse but has no RT,
+        // so the stats must come from the reactions alone.
+        let trials = vec![
+            reaction(0, 300.0, 0.0),
+            trial(1, TrialOutcome::Lapse, 60_000.0),
+            reaction(2, 300.0, 120_000.0),
+        ];
+
+        let m = PvtMetrics::from_trials(&trials, 0, 1);
+        assert_eq!(m.total_trials, 3);
+        assert_eq!(m.reacted_trials, 2);
+        assert_eq!(m.lapses_ge_500ms, 1);
+        assert_close(m.mean_rt_ms, 300.0, "mean");
+        assert_close(m.sd_rt_ms, 0.0, "sd");
+        assert_close(m.time_on_task_slope_ms_per_min, 0.0, "slope");
+    }
+
+    #[test]
+    fn false_starts_pass_through_and_contribute_no_rt() {
+        let trials = vec![
+            trial(0, TrialOutcome::FalseStart, 0.0),
+            reaction(1, 280.0, 5000.0),
+        ];
+
+        let m = PvtMetrics::from_trials(&trials, 3, 1);
+        assert_eq!(m.false_starts, 3);
+        assert_eq!(m.reacted_trials, 1);
+        assert_close(m.median_rt_ms, 280.0, "median");
+        // Single reaction: dispersion and slope are degenerate → 0.
+        assert_close(m.sd_rt_ms, 0.0, "sd");
+        assert_close(m.time_on_task_slope_ms_per_min, 0.0, "slope");
+    }
+
+    #[test]
+    fn no_reactions_yields_zeroed_metrics() {
+        // Pending trials are not completed; false starts still surface.
+        let trials = vec![
+            trial(0, TrialOutcome::Pending, 0.0),
+            trial(1, TrialOutcome::FalseStart, 1000.0),
+        ];
+
+        let m = PvtMetrics::from_trials(&trials, 1, 1);
+        assert_eq!(m.total_trials, 1); // the false start completed; pending didn't
+        assert_eq!(m.reacted_trials, 0);
+        assert_eq!(m.false_starts, 1);
+        assert!(!m.meets_min_trial_requirement);
+        assert_close(m.median_rt_ms, 0.0, "median");
+
+        let empty = PvtMetrics::from_trials(&[], 0, 1);
+        assert_eq!(empty.total_trials, 0);
+        assert!(!empty.meets_min_trial_requirement);
+    }
+
+    #[test]
+    fn min_trial_requirement_counts_reactions_only() {
+        // 2 reactions + 1 timeout lapse: min_required=3 must NOT be met (lapses
+        // don't count toward the reacted minimum), min_required=2 must be.
+        let trials = vec![
+            reaction(0, 300.0, 0.0),
+            trial(1, TrialOutcome::Lapse, 1000.0),
+            reaction(2, 320.0, 2000.0),
+        ];
+
+        assert!(!PvtMetrics::from_trials(&trials, 0, 3).meets_min_trial_requirement);
+        assert!(PvtMetrics::from_trials(&trials, 0, 2).meets_min_trial_requirement);
+    }
+
+    #[test]
+    fn median_interpolates_even_counts() {
+        let trials = vec![
+            reaction(0, 200.0, 0.0),
+            reaction(1, 300.0, 1000.0),
+            reaction(2, 400.0, 2000.0),
+            reaction(3, 500.0, 3000.0),
+        ];
+        let m = PvtMetrics::from_trials(&trials, 0, 1);
+        assert_close(m.median_rt_ms, 350.0, "median");
+    }
+
+    #[test]
+    fn slope_is_zero_when_all_onsets_coincide() {
+        // Degenerate regression (zero x-variance) must not divide by ~0.
+        let trials = vec![reaction(0, 300.0, 0.0), reaction(1, 400.0, 0.0)];
+        let m = PvtMetrics::from_trials(&trials, 0, 1);
+        assert_close(m.time_on_task_slope_ms_per_min, 0.0, "slope");
+    }
+}

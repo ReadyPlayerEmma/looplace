@@ -1460,11 +1460,11 @@ impl SnapshotOverview {
             }
         }
 
-        spark_collect.sort_by(|a, b| a.0.cmp(&b.0));
+        spark_collect.sort_by_key(|a| a.0);
         let spark_points: Vec<SparkPoint> =
             spark_collect.into_iter().map(|(_, point)| point).collect();
 
-        bar_collect.sort_by(|a, b| a.0.cmp(&b.0));
+        bar_collect.sort_by_key(|a| a.0);
         let mut bar_samples: Vec<BarSample> =
             bar_collect.into_iter().map(|(_, sample)| sample).collect();
         if bar_samples.len() > 8 {
